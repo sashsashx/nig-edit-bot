@@ -3,7 +3,7 @@ from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 
-# Инициализация приложения Flask
+# Flask приложение
 app = Flask(__name__)
 
 # Telegram Bot Token
@@ -12,7 +12,7 @@ BOT_TOKEN = "7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM"
 # Инициализация Telegram Application
 application = Application.builder().token(BOT_TOKEN).build()
 
-# Обработчик команды /start
+# Обработчики Telegram
 async def start(update: Update, context):
     keyboard = [
         [{"text": "Hand", "callback_data": "menu_hand"}],
@@ -23,7 +23,6 @@ async def start(update: Update, context):
     reply_markup = {"inline_keyboard": keyboard}
     await update.message.reply_text("Choose a body part:", reply_markup=reply_markup)
 
-# Обработчик меню частей тела
 async def menu(update: Update, context):
     query = update.callback_query
     part = query.data.split("_")[1]
@@ -45,7 +44,6 @@ async def menu(update: Update, context):
     reply_markup = {"inline_keyboard": keyboard}
     await query.edit_message_text(f"Choose an accessory for {part}:", reply_markup=reply_markup)
 
-# Обработчик выбора аксессуаров
 async def select(update: Update, context):
     query = update.callback_query
     _, part, accessory = query.data.split("_")
@@ -53,17 +51,15 @@ async def select(update: Update, context):
     await query.edit_message_text(f"You selected: {accessory}")
     await start(update, context)
 
-# Обработчик сброса
 async def reset(update: Update, context):
     context.user_data.clear()
     await update.callback_query.edit_message_text("Selections reset.")
     await start(update, context)
 
-# Обработчик генерации изображения
 async def generate(update: Update, context):
     query = update.callback_query
     await query.edit_message_text("Generating image...")
-    # Здесь должна быть реализация генерации изображения
+    # Реализация генерации изображения
     await query.edit_message_text("Image generated!")
 
 # Регистрация обработчиков
@@ -74,7 +70,7 @@ application.add_handler(CallbackQueryHandler(reset, pattern="reset"))
 application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
 application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
 
-# Flask маршрут для обработки вебхуков
+# Маршрут Flask для вебхука
 @app.route("/webhook", methods=["POST"])
 def webhook():
     json_update = request.get_json()
@@ -83,7 +79,7 @@ def webhook():
         application.update_queue.put(update)
     return "OK", 200
 
-# Запуск Flask-сервера
+# Запуск Flask
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8443))
     app.run(host="0.0.0.0", port=port)
