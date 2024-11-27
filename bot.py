@@ -135,8 +135,13 @@ def main():
     application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
     application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
 
+    # Check if the RENDER_EXTERNAL_HOSTNAME environment variable is set
+    render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+    if not render_hostname:
+        raise ValueError("RENDER_EXTERNAL_HOSTNAME is not set.")
+
     # Webhook configuration
-    webhook_url = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/webhook"
+    webhook_url = f"https://{render_hostname}/webhook"
     application.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
