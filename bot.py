@@ -5,94 +5,124 @@ from PIL import Image
 # Store user choices
 user_choices = {}
 
+# Define available accessories for each part of the body
+ACCESSORIES = {
+    "hand": {"coffee": "Coffee", "kfc": "KFC Wings"},
+    "head": {"maga_hat": "MAGA Hat", "wif_hat": "WIF Hat", "chrome_hat": "Chrome Hat"},
+    "torso": {},  # Empty for now
+    "legs": {},   # Empty for now
+}
+
 # Start command
 async def start(update: Update, context):
+    user_id = update.message.from_user.id if update.message else update.callback_query.from_user.id
+
+    # Build the main menu
     keyboard = [
-        [InlineKeyboardButton("Coffee", callback_data='coffee')],
-        [InlineKeyboardButton("KFC Wings", callback_data='kfc')],
-        [InlineKeyboardButton("Reset", callback_data='reset')],
-        [InlineKeyboardButton("Generate", callback_data='generate')]
+        [
+            InlineKeyboardButton(
+                f"Hand [{user_choices.get(user_id, {}).get('hand', 'None')}]",
+                callback_data="menu_hand",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                f"Head [{user_choices.get(user_id, {}).get('head', 'None')}]",
+                callback_data="menu_head",
+            )
+        ],
+        [
+            InlineKeyboardButton(f"Torso [None]", callback_data="menu_torso"),
+            InlineKeyboardButton(f"Legs [None]", callback_data="menu_legs"),
+        ],
+        [InlineKeyboardButton("Reset", callback_data="reset")],
+        [InlineKeyboardButton("Generate", callback_data="generate")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Send or edit message
     if update.message:
-        await update.message.reply_text("Choose an accessory for Nig:", reply_markup=reply_markup)
+        await update.message.reply_text("Choose a body part:", reply_markup=reply_markup)
     elif update.callback_query:
-        await update.callback_query.message.reply_text("Choose an accessory for Nig:", reply_markup=reply_markup)
+        await update.callback_query.edit_message_text(
+            "Choose a body part:", reply_markup=reply_markup
+        )
 
-# Handle button presses
-async def button(update: Update, context):
+# Menu for a specific body part
+async def menu(update: Update, context):
     query = update.callback_query
-    await query.answer()
     user_id = query.from_user.id
+    part = query.data.split("_")[1]
 
-    # Initialize user choices if not exists
+    # Build the menu for the specific body part
+    accessories = ACCESSORIES.get(part, {})
+    keyboard = [
+        [InlineKeyboardButton(name, callback_data=f"select_{part}_{key}")]
+        for key, name in accessories.items()
+    ]
+    keyboard.append([InlineKeyboardButton("Back to Main Menu", callback_data="main_menu")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.edit_message_text(f"Choose an accessory for {part.capitalize()}:", reply_markup=reply_markup)
+
+# Handle accessory selection
+async def select(update: Update, context):
+    query = update.callback_query
+    user_id = query.from_user.id
+    _, part, accessory = query.data.split("_")
+
+    # Save the selected accessory
     if user_id not in user_choices:
         user_choices[user_id] = {}
+    user_choices[user_id][part] = ACCESSORIES[part][accessory]
 
-    # Process choices
-    if query.data == 'coffee':
-        user_choices[user_id]['accessory'] = 'coffee.png'
-        await query.edit_message_text("You selected: Coffee.")
-    elif query.data == 'kfc':
-        user_choices[user_id]['accessory'] = 'kfc.png'
-        await query.edit_message_text("You selected: KFC Wings.")
-    elif query.data == 'reset':
-        user_choices[user_id] = {}
-        await query.edit_message_text("Selections have been reset.")
-    elif query.data == 'generate':
-        await query.edit_message_text("Generating image...")
-        await generate_image(user_id, context, query)
-        return
+    # Return to main menu
+    await start(update, context)
 
-    # Automatically show the menu again
+# Reset all selections
+async def reset(update: Update, context):
+    user_id = update.callback_query.from_user.id
+    user_choices[user_id] = {}
     await start(update, context)
 
 # Generate the final image
-async def generate_image(user_id, context, query):
+async def generate(update: Update, context):
+    query = update.callback_query
+    user_id = query.from_user.id
+
+    # Open base image
     base_image = Image.open("images/nig.png")
     
-    # Define accessory position (adjust as needed)
+    # Define accessory positions
     positions = {
-        'coffee.png': (60, 300),  # Adjusted coordinates for coffee (moved left by 10%)
-        'kfc.png': (140, 300)    # Coordinates for KFC wings
+        "hand": (60, 300),  # Left hand
+        "head": (150, 50),  # Head
+        # Add positions for torso and legs later
     }
 
-    # Get user accessory choice
-    accessory_file = user_choices.get(user_id, {}).get('accessory')
-    if accessory_file:
-        accessory_path = f"images/{accessory_file}"
-        
-        # Ensure the file exists and is a PNG
-        try:
-            accessory = Image.open(accessory_path)
-            
-            # Resize the accessory (adjust size to be larger)
-            accessory = accessory.resize((150, 150))  # Increased size for better proportions
+    # Add accessories to the image
+    for part, accessory in user_choices.get(user_id, {}).items():
+        if accessory:
+            accessory_image = Image.open(f"images/{part}/{accessory}.png").resize((150, 150))
+            base_image.paste(accessory_image, positions[part], accessory_image)
 
-            # Paste accessory onto the base image
-            base_image.paste(accessory, positions[accessory_file], accessory)
-        except FileNotFoundError:
-            await query.message.reply_text(f"Error: {accessory_file} not found!")
-            return
-        except Exception as e:
-            await query.message.reply_text(f"Error: {str(e)}")
-            return
-
-    # Save the generated image
+    # Save and send the image
     output_path = f"images/result_{user_id}.png"
     base_image.save(output_path)
-
-    # Send the generated image to the user
-    await query.message.reply_photo(photo=open(output_path, 'rb'))
+    await query.message.reply_photo(photo=open(output_path, "rb"))
 
 # Main function to start the bot
 def main():
-    application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
+    application = Application.builder().token("YOUR_TOKEN_HERE").build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(CallbackQueryHandler(menu, pattern="menu_"))
+    application.add_handler(CallbackQueryHandler(select, pattern="select_"))
+    application.add_handler(CallbackQueryHandler(reset, pattern="reset"))
+    application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
+    application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
 
     application.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
