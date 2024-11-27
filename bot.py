@@ -113,7 +113,7 @@ async def generate(update: Update, context):
 
 # Main function to start the bot
 def main():
-    application = Application.builder().token("YOUR_TOKEN_HERE").build()
+application = Application.builder().token("123456789:ABCDEF1234567890ghijklmnopqrstuvwxyz").build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(menu, pattern="menu_"))
