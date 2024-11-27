@@ -130,5 +130,4 @@ application.add_handler(CallbackQueryHandler(handle_selection, pattern="^select_
 
 # Run the bot with polling
 if __name__ == "__main__":
-    print("Starting the bot...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling()
