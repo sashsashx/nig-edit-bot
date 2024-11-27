@@ -1,8 +1,7 @@
 import os
 from flask import Flask, request
-from telegram import Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from telegram.ext.dispatcher import Dispatcher
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Dispatcher
 from PIL import Image
 
 # Flask приложение
