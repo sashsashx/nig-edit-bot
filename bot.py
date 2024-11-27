@@ -1,24 +1,30 @@
 import os
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from flask import Flask, request
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from PIL import Image
 
-# Store user choices
+# Flask приложение
+app = Flask(__name__)
+
+# Telegram Bot Application
+application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
+
+# Хранилище для пользовательских выборов
 user_choices = {}
 
-# Define available accessories for each part of the body
+# Определение аксессуаров для частей тела
 ACCESSORIES = {
     "hand": {"coffee": "Coffee", "kfc": "KFC Wings"},
     "head": {"maga_hat": "MAGA Hat", "wif_hat": "WIF Hat", "chrome_hat": "Chrome Hat"},
-    "torso": {},  # Empty for now
-    "legs": {},   # Empty for now
+    "torso": {},  # Пока пусто
+    "legs": {},   # Пока пусто
 }
 
-# Start command
+# Команда /start
 async def start(update: Update, context):
     user_id = update.message.from_user.id if update.message else update.callback_query.from_user.id
 
-    # Build the main menu
     keyboard = [
         [
             InlineKeyboardButton(
@@ -41,21 +47,17 @@ async def start(update: Update, context):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Send or edit message
     if update.message:
         await update.message.reply_text("Choose a body part:", reply_markup=reply_markup)
     elif update.callback_query:
-        await update.callback_query.edit_message_text(
-            "Choose a body part:", reply_markup=reply_markup
-        )
+        await update.callback_query.edit_message_text("Choose a body part:", reply_markup=reply_markup)
 
-# Menu for a specific body part
+# Меню аксессуаров
 async def menu(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
     part = query.data.split("_")[1]
 
-    # Build the menu for the specific body part
     accessories = ACCESSORIES.get(part, {})
     keyboard = [
         [InlineKeyboardButton(name, callback_data=f"select_{part}_{key}")]
@@ -66,14 +68,13 @@ async def menu(update: Update, context):
 
     await query.edit_message_text(f"Choose an accessory for {part.capitalize()}:", reply_markup=reply_markup)
 
-# Handle accessory selection
+# Выбор аксессуара
 async def select(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
 
     try:
         _, part, accessory = query.data.split("_")
-        # Validate accessory
         if accessory not in ACCESSORIES.get(part, {}):
             await query.answer("Invalid accessory selected!")
             return
@@ -81,71 +82,62 @@ async def select(update: Update, context):
         await query.answer("Invalid selection!")
         return
 
-    # Save the selected accessory
     if user_id not in user_choices:
         user_choices[user_id] = {}
     user_choices[user_id][part] = ACCESSORIES[part][accessory]
 
-    # Return to main menu
     await start(update, context)
 
-# Reset all selections
+# Сброс выборов
 async def reset(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
 
-    # Clear user choices
     user_choices[user_id] = {}
     await start(update, context)
 
-# Generate the final image
+# Генерация изображения
 async def generate(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
 
-    # Open base image
     base_image = Image.open("images/nig.png")
-    
-    # Define accessory positions
     positions = {
-        "hand": (60, 300),              # Left hand
-        "head": (175, 50),             # Centered at the top 20% for head
-        # Add positions for torso and legs later
+        "hand": (60, 300),
+        "head": (175, 50),
     }
 
-    # Add accessories to the image
     for part, accessory in user_choices.get(user_id, {}).items():
         if accessory:
             accessory_image = Image.open(f"images/{part}/{accessory}.png").resize((150, 150))
             base_image.paste(accessory_image, positions[part], accessory_image)
 
-    # Save and send the image
     output_path = f"images/result_{user_id}.png"
     base_image.save(output_path)
     await query.message.reply_photo(photo=open(output_path, "rb"))
 
-# Main function to start the bot
+# Добавление обработчиков
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(menu, pattern="menu_"))
+application.add_handler(CallbackQueryHandler(select, pattern="select_"))
+application.add_handler(CallbackQueryHandler(reset, pattern="reset"))
+application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
+application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
+
+# Маршрут для вебхука
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    if request.method == "POST":
+        json_update = request.get_json()
+        if json_update:
+            application.update_queue.put(json_update)
+        return "OK", 200
+    return "Not found", 404
+
+# Основная функция для запуска Flask-сервера
 def main():
-    application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(menu, pattern="menu_"))
-    application.add_handler(CallbackQueryHandler(select, pattern="select_"))
-    application.add_handler(CallbackQueryHandler(reset, pattern="reset"))
-    application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
-    application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
-
-    # Build webhook URL using RENDER_SERVICE_ID
-    render_service_id = os.environ.get("RENDER_SERVICE_ID")
-    if not render_service_id:
-        raise ValueError("RENDER_SERVICE_ID is not set.")
-    
-    webhook_url = f"https://{render_service_id}.onrender.com/webhook"
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8443)),
-        webhook_url=webhook_url,
-    )
+    port = int(os.environ.get("PORT", 8443))
+    app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
     main()
