@@ -73,6 +73,10 @@ async def select(update: Update, context):
 
     try:
         _, part, accessory = query.data.split("_")
+        # Validate accessory
+        if accessory not in ACCESSORIES.get(part, {}):
+            await query.answer("Invalid accessory selected!")
+            return
     except ValueError:
         await query.answer("Invalid selection!")
         return
@@ -87,7 +91,10 @@ async def select(update: Update, context):
 
 # Reset all selections
 async def reset(update: Update, context):
-    user_id = update.callback_query.from_user.id
+    query = update.callback_query
+    user_id = query.from_user.id
+
+    # Clear user choices
     user_choices[user_id] = {}
     await start(update, context)
 
