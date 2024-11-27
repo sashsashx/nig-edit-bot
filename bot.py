@@ -45,7 +45,7 @@ def generate_image(user_id):
     return output_path
 
 # Command handlers
-def start(update: Update, context):
+async def start(update: Update, context):
     keyboard = [
         [InlineKeyboardButton("Hand", callback_data="menu_hand"),
          InlineKeyboardButton("Head", callback_data="menu_head")],
@@ -55,11 +55,11 @@ def start(update: Update, context):
          InlineKeyboardButton("Generate", callback_data="generate")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text("Choose a body part to customize:", reply_markup=reply_markup)
+    await update.message.reply_text("Choose a body part to customize:", reply_markup=reply_markup)
 
-def handle_menu(update: Update, context):
+async def handle_menu(update: Update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
 
     if query.data == "menu_hand":
         hand_keyboard = [
@@ -67,8 +67,8 @@ def handle_menu(update: Update, context):
              InlineKeyboardButton("KFC Wings", callback_data="select_hand_kfc")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        query.edit_message_text("Choose an accessory for the hand:",
-                                reply_markup=InlineKeyboardMarkup(hand_keyboard))
+        await query.edit_message_text("Choose an accessory for the hand:",
+                                       reply_markup=InlineKeyboardMarkup(hand_keyboard))
 
     elif query.data == "menu_head":
         head_keyboard = [
@@ -77,8 +77,8 @@ def handle_menu(update: Update, context):
              InlineKeyboardButton("Chrome Hat", callback_data="select_head_chrome_hat")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        query.edit_message_text("Choose an accessory for the head:",
-                                reply_markup=InlineKeyboardMarkup(head_keyboard))
+        await query.edit_message_text("Choose an accessory for the head:",
+                                       reply_markup=InlineKeyboardMarkup(head_keyboard))
 
     elif query.data == "menu_body":
         body_keyboard = [
@@ -86,8 +86,8 @@ def handle_menu(update: Update, context):
              InlineKeyboardButton("Tie", callback_data="select_body_tie")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        query.edit_message_text("Choose an accessory for the body:",
-                                reply_markup=InlineKeyboardMarkup(body_keyboard))
+        await query.edit_message_text("Choose an accessory for the body:",
+                                       reply_markup=InlineKeyboardMarkup(body_keyboard))
 
     elif query.data == "menu_legs":
         legs_keyboard = [
@@ -95,24 +95,24 @@ def handle_menu(update: Update, context):
              InlineKeyboardButton("Jeans", callback_data="select_legs_jeans")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        query.edit_message_text("Choose an accessory for the legs:",
-                                reply_markup=InlineKeyboardMarkup(legs_keyboard))
+        await query.edit_message_text("Choose an accessory for the legs:",
+                                       reply_markup=InlineKeyboardMarkup(legs_keyboard))
 
     elif query.data == "reset":
         user_choices[query.from_user.id] = {}
-        query.edit_message_text("Choices reset! Use /start to begin again.")
+        await query.edit_message_text("Choices reset! Use /start to begin again.")
 
     elif query.data == "generate":
         user_id = query.from_user.id
         image_path = generate_image(user_id)
-        query.message.reply_photo(photo=open(image_path, "rb"))
+        await query.message.reply_photo(photo=open(image_path, "rb"))
 
     elif query.data == "back_to_main":
-        start(query.message, context)
+        await start(query.message, context)
 
-def handle_selection(update: Update, context):
+async def handle_selection(update: Update, context):
     query = update.callback_query
-    query.answer()
+    await query.answer()
     user_id = query.from_user.id
 
     # Parse the selection
@@ -121,7 +121,7 @@ def handle_selection(update: Update, context):
         user_choices[user_id] = {}
     user_choices[user_id][part] = f"{accessory}.png"
 
-    query.edit_message_text(f"You selected: {accessory.capitalize()}")
+    await query.edit_message_text(f"You selected: {accessory.capitalize()}")
 
 # Add handlers
 application.add_handler(CommandHandler("start", start))
