@@ -1,122 +1,72 @@
 import os
 from flask import Flask, request
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from PIL import Image
 
-# Flask приложение
+# Инициализация приложения Flask
 app = Flask(__name__)
 
-# Telegram Bot Application
-application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
+# Telegram Bot Token
+BOT_TOKEN = "7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM"
 
-# Хранилище для пользовательских выборов
-user_choices = {}
+# Инициализация Telegram Application
+application = Application.builder().token(BOT_TOKEN).build()
 
-# Определение аксессуаров для частей тела
-ACCESSORIES = {
-    "hand": {"coffee": "Coffee", "kfc": "KFC Wings"},
-    "head": {"maga_hat": "MAGA Hat", "wif_hat": "WIF Hat", "chrome_hat": "Chrome Hat"},
-    "torso": {},  # Пока пусто
-    "legs": {},   # Пока пусто
-}
-
-# Команда /start
+# Обработчик команды /start
 async def start(update: Update, context):
-    user_id = update.message.from_user.id if update.message else update.callback_query.from_user.id
-
     keyboard = [
-        [
-            InlineKeyboardButton(
-                f"Hand [{user_choices.get(user_id, {}).get('hand', 'None')}]",
-                callback_data="menu_hand",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                f"Head [{user_choices.get(user_id, {}).get('head', 'None')}]",
-                callback_data="menu_head",
-            )
-        ],
-        [
-            InlineKeyboardButton(f"Torso [None]", callback_data="menu_torso"),
-            InlineKeyboardButton(f"Legs [None]", callback_data="menu_legs"),
-        ],
-        [InlineKeyboardButton("Reset", callback_data="reset")],
-        [InlineKeyboardButton("Generate", callback_data="generate")],
+        [{"text": "Hand", "callback_data": "menu_hand"}],
+        [{"text": "Head", "callback_data": "menu_head"}],
+        [{"text": "Reset", "callback_data": "reset"}],
+        [{"text": "Generate Image", "callback_data": "generate"}],
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = {"inline_keyboard": keyboard}
+    await update.message.reply_text("Choose a body part:", reply_markup=reply_markup)
 
-    if update.message:
-        await update.message.reply_text("Choose a body part:", reply_markup=reply_markup)
-    elif update.callback_query:
-        await update.callback_query.edit_message_text("Choose a body part:", reply_markup=reply_markup)
-
-# Меню аксессуаров
+# Обработчик меню частей тела
 async def menu(update: Update, context):
     query = update.callback_query
-    user_id = query.from_user.id
     part = query.data.split("_")[1]
+    if part == "hand":
+        keyboard = [
+            [{"text": "Coffee", "callback_data": "select_hand_coffee"}],
+            [{"text": "KFC Wings", "callback_data": "select_hand_kfc"}],
+            [{"text": "Back", "callback_data": "main_menu"}],
+        ]
+    elif part == "head":
+        keyboard = [
+            [{"text": "MAGA Hat", "callback_data": "select_head_maga_hat"}],
+            [{"text": "WiF Hat", "callback_data": "select_head_wif_hat"}],
+            [{"text": "Chrome Hat", "callback_data": "select_head_chrome_hat"}],
+            [{"text": "Back", "callback_data": "main_menu"}],
+        ]
+    else:
+        keyboard = []
+    reply_markup = {"inline_keyboard": keyboard}
+    await query.edit_message_text(f"Choose an accessory for {part}:", reply_markup=reply_markup)
 
-    accessories = ACCESSORIES.get(part, {})
-    keyboard = [
-        [InlineKeyboardButton(name, callback_data=f"select_{part}_{key}")]
-        for key, name in accessories.items()
-    ]
-    keyboard.append([InlineKeyboardButton("Back to Main Menu", callback_data="main_menu")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await query.edit_message_text(f"Choose an accessory for {part.capitalize()}:", reply_markup=reply_markup)
-
-# Выбор аксессуара
+# Обработчик выбора аксессуаров
 async def select(update: Update, context):
     query = update.callback_query
-    user_id = query.from_user.id
-
-    try:
-        _, part, accessory = query.data.split("_")
-        if accessory not in ACCESSORIES.get(part, {}):
-            await query.answer("Invalid accessory selected!")
-            return
-    except ValueError:
-        await query.answer("Invalid selection!")
-        return
-
-    if user_id not in user_choices:
-        user_choices[user_id] = {}
-    user_choices[user_id][part] = ACCESSORIES[part][accessory]
-
+    _, part, accessory = query.data.split("_")
+    context.user_data[part] = accessory
+    await query.edit_message_text(f"You selected: {accessory}")
     await start(update, context)
 
-# Сброс выборов
+# Обработчик сброса
 async def reset(update: Update, context):
-    query = update.callback_query
-    user_id = query.from_user.id
-
-    user_choices[user_id] = {}
+    context.user_data.clear()
+    await update.callback_query.edit_message_text("Selections reset.")
     await start(update, context)
 
-# Генерация изображения
+# Обработчик генерации изображения
 async def generate(update: Update, context):
     query = update.callback_query
-    user_id = query.from_user.id
+    await query.edit_message_text("Generating image...")
+    # Здесь должна быть реализация генерации изображения
+    await query.edit_message_text("Image generated!")
 
-    base_image = Image.open("images/nig.png")
-    positions = {
-        "hand": (60, 300),
-        "head": (175, 50),
-    }
-
-    for part, accessory in user_choices.get(user_id, {}).items():
-        if accessory:
-            accessory_image = Image.open(f"images/{part}/{accessory}.png").resize((150, 150))
-            base_image.paste(accessory_image, positions[part], accessory_image)
-
-    output_path = f"images/result_{user_id}.png"
-    base_image.save(output_path)
-    await query.message.reply_photo(photo=open(output_path, "rb"))
-
-# Добавление обработчиков
+# Регистрация обработчиков
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(menu, pattern="menu_"))
 application.add_handler(CallbackQueryHandler(select, pattern="select_"))
@@ -124,7 +74,7 @@ application.add_handler(CallbackQueryHandler(reset, pattern="reset"))
 application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
 application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
 
-# Маршрут для вебхука
+# Flask маршрут для обработки вебхуков
 @app.route("/webhook", methods=["POST"])
 def webhook():
     json_update = request.get_json()
@@ -133,7 +83,7 @@ def webhook():
         application.update_queue.put(update)
     return "OK", 200
 
-# Основная функция для запуска Flask-сервера
+# Запуск Flask-сервера
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8443))
     app.run(host="0.0.0.0", port=port)
