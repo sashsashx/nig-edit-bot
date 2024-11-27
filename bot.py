@@ -108,20 +108,21 @@ async def handle_menu(update: Update, context):
         await query.message.reply_photo(photo=open(image_path, "rb"))
 
     elif query.data == "back_to_main":
-        await start(query.message, context)
+        await start(update, context)
 
 async def handle_selection(update: Update, context):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
 
-    # Parse the selection
-    _, part, accessory = query.data.split("_")
-    if user_id not in user_choices:
-        user_choices[user_id] = {}
-    user_choices[user_id][part] = f"{accessory}.png"
-
-    await query.edit_message_text(f"You selected: {accessory.capitalize()}")
+    try:
+        _, part, accessory = query.data.split("_")
+        if user_id not in user_choices:
+            user_choices[user_id] = {}
+        user_choices[user_id][part] = f"{accessory}.png"
+        await query.edit_message_text(f"You selected: {accessory.capitalize()}")
+    except ValueError:
+        await query.edit_message_text("Invalid selection. Please try again.")
 
 # Add handlers
 application.add_handler(CommandHandler("start", start))
