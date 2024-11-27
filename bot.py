@@ -1,7 +1,8 @@
 import os
 from flask import Flask, request
+from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext.dispatcher import Dispatcher
 from PIL import Image
 
 # Flask приложение
@@ -9,6 +10,9 @@ app = Flask(__name__)
 
 # Telegram Bot Application
 application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
+
+# Telegram Dispatcher для обработки обновлений
+dispatcher: Dispatcher = application.dispatcher
 
 # Хранилище для пользовательских выборов
 user_choices = {}
@@ -117,27 +121,23 @@ async def generate(update: Update, context):
     await query.message.reply_photo(photo=open(output_path, "rb"))
 
 # Добавление обработчиков
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(menu, pattern="menu_"))
-application.add_handler(CallbackQueryHandler(select, pattern="select_"))
-application.add_handler(CallbackQueryHandler(reset, pattern="reset"))
-application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
-application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CallbackQueryHandler(menu, pattern="menu_"))
+dispatcher.add_handler(CallbackQueryHandler(select, pattern="select_"))
+dispatcher.add_handler(CallbackQueryHandler(reset, pattern="reset"))
+dispatcher.add_handler(CallbackQueryHandler(generate, pattern="generate"))
+dispatcher.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
 
 # Маршрут для вебхука
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    if request.method == "POST":
-        json_update = request.get_json()
-        if json_update:
-            application.update_queue.put(json_update)
-        return "OK", 200
-    return "Not found", 404
+    json_update = request.get_json()
+    if json_update:
+        update = Update.de_json(json_update, application.bot)
+        dispatcher.process_update(update)
+    return "OK", 200
 
 # Основная функция для запуска Flask-сервера
-def main():
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8443))
     app.run(host="0.0.0.0", port=port)
-
-if __name__ == "__main__":
-    main()
