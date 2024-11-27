@@ -69,7 +69,12 @@ async def menu(update: Update, context):
 async def select(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
-    _, part, accessory = query.data.split("_")
+
+    try:
+        _, part, accessory = query.data.split("_")
+    except ValueError:
+        await query.answer("Invalid selection!")
+        return
 
     # Save the selected accessory
     if user_id not in user_choices:
@@ -95,8 +100,8 @@ async def generate(update: Update, context):
     
     # Define accessory positions
     positions = {
-        "hand": (60, 300),  # Left hand
-        "head": (150, 50),  # Head
+        "hand": (60, 300),              # Left hand
+        "head": (175, 50),             # Centered at the top 20% for head
         # Add positions for torso and legs later
     }
 
