@@ -1,3 +1,4 @@
+import os
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from PIL import Image
@@ -127,7 +128,13 @@ def main():
     application.add_handler(CallbackQueryHandler(generate, pattern="generate"))
     application.add_handler(CallbackQueryHandler(start, pattern="main_menu"))
 
-    application.run_polling()
+    # Webhook configuration
+    webhook_url = f"https://{os.environ['RENDER_EXTERNAL_HOSTNAME']}/webhook"
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8443)),
+        webhook_url=webhook_url,
+    )
 
 if __name__ == "__main__":
     main()
