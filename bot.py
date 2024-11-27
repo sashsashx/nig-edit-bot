@@ -1,10 +1,14 @@
+from flask import Flask, request
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from PIL import Image
 import os
 
+# Flask app setup
+app = Flask(__name__)
+
 # Telegram bot token
-BOT_TOKEN = "7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 application = Application.builder().token(BOT_TOKEN).build()
 
 # Global variables to track user choices
@@ -14,51 +18,57 @@ user_choices = {}
 BASE_IMAGE = "images/nig.png"
 HAND_DIR = "images/hand"
 HEAD_DIR = "images/head"
-BODY_DIR = "images/body"  # For body-related accessories (currently empty)
-LEGS_DIR = "images/legs"  # For leg-related accessories (currently empty)
+BODY_DIR = "images/body"
+LEGS_DIR = "images/legs"
 
 # Generate final image
 def generate_image(user_id):
-    base_image = Image.open(BASE_IMAGE)
+    base_image = Image.open(BASE_IMAGE).convert("RGBA")
     if user_id in user_choices:
         for part, accessory in user_choices[user_id].items():
             if accessory:
+                part_dir = {
+                    "hand": HAND_DIR,
+                    "head": HEAD_DIR,
+                    "body": BODY_DIR,
+                    "legs": LEGS_DIR,
+                }[part]
+                accessory_image = Image.open(os.path.join(part_dir, accessory)).convert("RGBA")
                 if part == "hand":
-                    part_dir = HAND_DIR
-                    accessory_image = Image.open(os.path.join(part_dir, accessory))
                     base_image.paste(accessory_image, (100, 200), accessory_image)
                 elif part == "head":
-                    part_dir = HEAD_DIR
-                    accessory_image = Image.open(os.path.join(part_dir, accessory))
                     base_image.paste(accessory_image, (150, 50), accessory_image)
                 elif part == "body":
-                    part_dir = BODY_DIR
-                    accessory_image = Image.open(os.path.join(part_dir, accessory))
-                    base_image.paste(accessory_image, (120, 150), accessory_image)
-                elif part == "legs":
-                    part_dir = LEGS_DIR
-                    accessory_image = Image.open(os.path.join(part_dir, accessory))
                     base_image.paste(accessory_image, (100, 300), accessory_image)
+                elif part == "legs":
+                    base_image.paste(accessory_image, (100, 500), accessory_image)
     output_path = f"output_{user_id}.png"
     base_image.save(output_path)
     return output_path
 
 # Command handlers
-async def start(update: Update, context):
+def start(update: Update, context):
+    user_id = update.message.from_user.id
+    state = user_choices.get(user_id, {})
+    hand_state = state.get("hand", "None")
+    head_state = state.get("head", "None")
+    body_state = state.get("body", "None")
+    legs_state = state.get("legs", "None")
+
     keyboard = [
-        [InlineKeyboardButton("Hand", callback_data="menu_hand"),
-         InlineKeyboardButton("Head", callback_data="menu_head")],
-        [InlineKeyboardButton("Body", callback_data="menu_body"),
-         InlineKeyboardButton("Legs", callback_data="menu_legs")],
-        [InlineKeyboardButton("Reset", callback_data="reset"),
-         InlineKeyboardButton("Generate", callback_data="generate")]
+        [InlineKeyboardButton(f"Hand [{hand_state}]", callback_data="menu_hand")],
+        [InlineKeyboardButton(f"Head [{head_state}]", callback_data="menu_head")],
+        [InlineKeyboardButton(f"Body [{body_state}]", callback_data="menu_body")],
+        [InlineKeyboardButton(f"Legs [{legs_state}]", callback_data="menu_legs")],
+        [InlineKeyboardButton("Reset", callback_data="reset")],
+        [InlineKeyboardButton("Generate", callback_data="generate")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Choose a body part to customize:", reply_markup=reply_markup)
+    update.message.reply_text("Choose a body part to customize:", reply_markup=reply_markup)
 
-async def handle_menu(update: Update, context):
+def handle_menu(update: Update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
 
     if query.data == "menu_hand":
         hand_keyboard = [
@@ -66,8 +76,8 @@ async def handle_menu(update: Update, context):
              InlineKeyboardButton("KFC Wings", callback_data="select_hand_kfc")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        await query.edit_message_text("Choose an accessory for the hand:",
-                                       reply_markup=InlineKeyboardMarkup(hand_keyboard))
+        query.edit_message_text("Choose an accessory for the hand:",
+                                reply_markup=InlineKeyboardMarkup(hand_keyboard))
 
     elif query.data == "menu_head":
         head_keyboard = [
@@ -76,53 +86,65 @@ async def handle_menu(update: Update, context):
              InlineKeyboardButton("Chrome Hat", callback_data="select_head_chrome_hat")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        await query.edit_message_text("Choose an accessory for the head:",
-                                       reply_markup=InlineKeyboardMarkup(head_keyboard))
+        query.edit_message_text("Choose an accessory for the head:",
+                                reply_markup=InlineKeyboardMarkup(head_keyboard))
 
     elif query.data == "menu_body":
         body_keyboard = [
-            [InlineKeyboardButton("No accessories available yet", callback_data="no_action")],
+            [InlineKeyboardButton("T-shirt", callback_data="select_body_tshirt")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        await query.edit_message_text("No accessories for the body yet.", reply_markup=InlineKeyboardMarkup(body_keyboard))
+        query.edit_message_text("Choose an accessory for the body:",
+                                reply_markup=InlineKeyboardMarkup(body_keyboard))
 
     elif query.data == "menu_legs":
         legs_keyboard = [
-            [InlineKeyboardButton("No accessories available yet", callback_data="no_action")],
+            [InlineKeyboardButton("Jeans", callback_data="select_legs_jeans")],
             [InlineKeyboardButton("Back", callback_data="back_to_main")]
         ]
-        await query.edit_message_text("No accessories for the legs yet.", reply_markup=InlineKeyboardMarkup(legs_keyboard))
+        query.edit_message_text("Choose an accessory for the legs:",
+                                reply_markup=InlineKeyboardMarkup(legs_keyboard))
 
     elif query.data == "reset":
-        user_choices[query.from_user.id] = {}
-        await query.edit_message_text("Choices reset! Use /start to begin again.")
+        user_id = query.from_user.id
+        user_choices[user_id] = {}
+        query.edit_message_text("Choices reset! Use /start to begin again.")
 
     elif query.data == "generate":
         user_id = query.from_user.id
         image_path = generate_image(user_id)
-        await query.message.reply_photo(photo=open(image_path, "rb"))
+        query.message.reply_photo(photo=open(image_path, "rb"))
+        start(query.message, context)
 
     elif query.data == "back_to_main":
-        await start(query.message, context)
+        start(query.message, context)
 
-async def handle_selection(update: Update, context):
+def handle_selection(update: Update, context):
     query = update.callback_query
-    await query.answer()
+    query.answer()
     user_id = query.from_user.id
 
-    # Parse the selection
     _, part, accessory = query.data.split("_")
     if user_id not in user_choices:
         user_choices[user_id] = {}
     user_choices[user_id][part] = f"{accessory}.png"
-
-    await query.edit_message_text(f"You selected: {accessory.capitalize()}")
+    query.edit_message_text(f"You selected: {accessory.capitalize()}")
+    start(query.message, context)
 
 # Add handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(handle_menu, pattern="^menu_"))
 application.add_handler(CallbackQueryHandler(handle_selection, pattern="^select_"))
 
-# Run the bot using long polling
+# Flask webhook route
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    json_update = request.get_json()
+    update = Update.de_json(json_update, application.bot)
+    application.update_queue.put(update)
+    return "OK", 200
+
+# Run Flask server
 if __name__ == "__main__":
-    application.run_polling()
+    port = int(os.environ.get("PORT", 8443))
+    app.run(host="0.0.0.0", port=port)
