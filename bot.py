@@ -129,23 +129,6 @@ async def menu_handler(update: Update, context):
     elif query.data == "back":
         await start(update, context)
 
-# Accessory and background selection handler
-async def selection_handler(update: Update, context):
-    query = update.callback_query
-    user_id = query.from_user.id
-    await query.answer()
-
-    try:
-        part, key = query.data.split("_", maxsplit=1)
-        if part in ACCESSORY_DATA or part == "background":
-            user_choices[user_id][part] = key if part == "background" else f"{key}.png"
-            print(f"User {user_id} selected {part}: {user_choices[user_id][part]}")
-            await start(update, context)
-        else:
-            await query.edit_message_text("Invalid selection. Please try again.")
-    except ValueError:
-        await query.edit_message_text("Invalid selection. Please try again.")
-
 # Generate the final image
 async def generate_image(user_id, query):
     try:
@@ -183,9 +166,13 @@ async def generate_image(user_id, query):
         await query.message.reply_text(f"Error during generation: {str(e)}")
 
 # Main function to start the bot
-async def set_webhook():
+def main():
     application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
-    await application.bot.set_webhook(url="https://nig-edit-bot.onrender.com/webhook")
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(menu_handler, pattern="^menu_.*$|^reset$|^generate$|^random$|^back$"))
+    application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(hand|head|leg|background)_.+"))
+
     application.run_webhook(
         listen="0.0.0.0",
         port=int(os.environ.get("PORT", 8443)),
@@ -194,5 +181,4 @@ async def set_webhook():
     )
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(set_webhook())
+    main()
