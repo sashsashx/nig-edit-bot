@@ -27,8 +27,7 @@ ACCESSORY_DATA = {
         "BK_crown.png": {"position": [123, -13], "scale": 0.2},
     },
     "leg": {
-        "skate.png": {"position": [19, 225], "scale": 0.9},
-        "jordans.png": {"position": [19, -137], "scale": 0.8},
+        "elf.png": {"position": [240, 183], "scale": 0.3},
     }
 }
 
@@ -90,8 +89,7 @@ async def menu_handler(update: Update, context):
 
     elif query.data == "menu_leg":
         keyboard = [
-            [InlineKeyboardButton("Skate", callback_data="leg_skate")],
-            [InlineKeyboardButton("Jordans", callback_data="leg_jordans")],
+            [InlineKeyboardButton("Elf", callback_data="leg_elf")],
             [InlineKeyboardButton("Back", callback_data="back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -116,7 +114,6 @@ async def menu_handler(update: Update, context):
         await start(update, context)
 
     elif query.data == "random":
-        # Randomly select items for each category
         user_choices[user_id]["hand"] = random.choice(list(ACCESSORY_DATA["hand"].keys()))
         user_choices[user_id]["head"] = random.choice(list(ACCESSORY_DATA["head"].keys()))
         user_choices[user_id]["leg"] = random.choice(list(ACCESSORY_DATA["leg"].keys()))
@@ -140,7 +137,7 @@ async def selection_handler(update: Update, context):
         part, key = query.data.split("_", maxsplit=1)
         if part in ACCESSORY_DATA or part == "background":
             user_choices[user_id][part] = key if part == "background" else f"{key}.png"
-            print(f"User {user_id} selected {part}: {user_choices[user_id][part]}")  # Debugging output
+            print(f"User {user_id} selected {part}: {user_choices[user_id][part]}")
             await start(update, context)
         else:
             await query.edit_message_text("Invalid selection. Please try again.")
@@ -150,52 +147,35 @@ async def selection_handler(update: Update, context):
 # Generate the final image
 async def generate_image(user_id, query):
     try:
-        base_image = Image.open("images/nig.png").convert("RGBA")  # Ensure base image is loaded
-        result_image = Image.new("RGBA", base_image.size, (255, 255, 255, 255))  # Create new canvas with white background
+        base_image = Image.open("images/nig.png").convert("RGBA")
+        result_image = Image.new("RGBA", base_image.size, (255, 255, 255, 255))
 
-        # Add background
         background_file = user_choices[user_id].get("background")
         if background_file:
-            if not background_file.endswith(".png"):
-                background_file += ".png"  # Automatically add .png
-
-            background_path = f"images/background/{background_file}"
-            print(f"Looking for background at: {background_path}")  # Debugging output
+            background_path = f"images/background/{background_file}.png"
             if os.path.exists(background_path):
-                try:
-                    background_image = Image.open(background_path).convert("RGBA").resize(base_image.size)
-                    result_image.paste(background_image, (0, 0))  # Add background to the canvas
-                except Exception as e:
-                    await query.message.reply_text(f"Error loading background: {str(e)}")
-                    return
+                background_image = Image.open(background_path).convert("RGBA").resize(base_image.size)
+                result_image.paste(background_image, (0, 0))
             else:
                 await query.message.reply_text(f"Error: Background '{background_file}' not found!")
                 return
 
-        # Add base character on top of the background
-        print("Adding base image...")  # Debugging output
         result_image.paste(base_image, (0, 0), base_image)
 
-        # Add accessories
         for part, accessory_file in user_choices[user_id].items():
             if part in ACCESSORY_DATA and accessory_file and accessory_file in ACCESSORY_DATA[part]:
                 accessory_path = f"images/{part}/{accessory_file}"
-                print(f"Adding accessory: {accessory_path}")  # Debugging output
                 accessory_image = Image.open(accessory_path).convert("RGBA")
                 data = ACCESSORY_DATA[part][accessory_file]
                 position = data["position"]
                 scale = data["scale"]
-
-                # Resize accessory
                 accessory_image = accessory_image.resize(
                     (int(accessory_image.width * scale), int(accessory_image.height * scale))
                 )
                 result_image.paste(accessory_image, position, accessory_image)
 
-        # Save and send the generated image
         output_path = f"output/result_{user_id}.png"
         result_image.save(output_path)
-        print(f"Generated image saved to: {output_path}")  # Debugging output
         await query.message.reply_photo(photo=open(output_path, 'rb'))
     except Exception as e:
         await query.message.reply_text(f"Error during generation: {str(e)}")
