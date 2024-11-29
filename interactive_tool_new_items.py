@@ -4,13 +4,8 @@ from PIL import Image, ImageTk
 # Настройки файлов
 BASE_IMAGE = "images/nig.png"  # Базовое изображение
 ACCESSORIES = {
-    "Stone Island": "images/head/stone_island.png",
-    "Blunt": "images/head/blunt.png",
-    "Glasses": "images/head/glasses.png",
-    "Niqab": "images/head/niqab.png",
-    "Jordan": "images/leg/jordan.png",
-    "Skate": "images/leg/skate.png",
-    "US Flag": "images/hand/US_flag.png",
+    "BK Crown": "images/head/BK_crown.png",
+    "Jordans": "images/leg/jordans.png",
 }
 
 # Класс для работы с интерфейсом
