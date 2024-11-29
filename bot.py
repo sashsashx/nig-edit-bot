@@ -28,7 +28,7 @@ ACCESSORY_DATA = {
     },
     "leg": {
         "elf.png": {"position": [240, 183], "scale": 0.3},
-        "skate.png": {"position": [19, 225], "scale": 0.9},  # Skate added here
+        "skate.png": {"position": [19, 225], "scale": 0.9},
     }
 }
 
@@ -91,7 +91,7 @@ async def menu_handler(update: Update, context):
     elif query.data == "menu_leg":
         keyboard = [
             [InlineKeyboardButton("Elf", callback_data="leg_elf")],
-            [InlineKeyboardButton("Skate", callback_data="leg_skate")],  # Added Skate button
+            [InlineKeyboardButton("Skate", callback_data="leg_skate")],
             [InlineKeyboardButton("Back", callback_data="back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -183,14 +183,16 @@ async def generate_image(user_id, query):
         await query.message.reply_text(f"Error during generation: {str(e)}")
 
 # Main function to start the bot
-def main():
+async def set_webhook():
     application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(menu_handler, pattern="^menu_.*$|^reset$|^generate$|^random$|^back$"))
-    application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(hand|head|leg|background)_.+"))
-
-    application.run_polling()
+    await application.bot.set_webhook(url="https://nig-edit-bot.onrender.com/webhook")
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8443)),
+        url_path="webhook",
+        webhook_url="https://nig-edit-bot.onrender.com/webhook",
+    )
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(set_webhook())
