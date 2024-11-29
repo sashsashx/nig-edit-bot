@@ -28,6 +28,7 @@ ACCESSORY_DATA = {
     },
     "leg": {
         "elf.png": {"position": [240, 183], "scale": 0.3},
+        "skate.png": {"position": [19, 225], "scale": 0.9},  # Skate added here
     }
 }
 
@@ -90,6 +91,7 @@ async def menu_handler(update: Update, context):
     elif query.data == "menu_leg":
         keyboard = [
             [InlineKeyboardButton("Elf", callback_data="leg_elf")],
+            [InlineKeyboardButton("Skate", callback_data="leg_skate")],  # Added Skate button
             [InlineKeyboardButton("Back", callback_data="back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
