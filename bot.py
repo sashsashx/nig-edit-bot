@@ -2,6 +2,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from PIL import Image
 import os
+import random
 
 # Store user choices
 user_choices = {}
@@ -23,13 +24,15 @@ ACCESSORY_DATA = {
         "stone_island.png": {"position": [30, -83], "scale": 0.7},
         "blunt.png": {"position": [258, 252], "scale": 0.3},
         "glasses.png": {"position": [92, 120], "scale": 0.3},
+        "BK_crown.png": {"position": [123, -13], "scale": 0.2},
     },
     "leg": {
         "skate.png": {"position": [19, 225], "scale": 0.9},
+        "jordans.png": {"position": [19, -137], "scale": 0.8},
     }
 }
 
-BACKGROUND_DATA = ["matrix", "mario", "windows", "MCD"]
+BACKGROUND_DATA = ["matrix", "mario", "windows", "MCD", "strip", "MLK"]
 
 # Start command
 async def start(update: Update, context):
@@ -41,6 +44,7 @@ async def start(update: Update, context):
         [InlineKeyboardButton(f"Head (Selected: {user_choices[user_id]['head'] or 'None'})", callback_data="menu_head")],
         [InlineKeyboardButton(f"Leg (Selected: {user_choices[user_id]['leg'] or 'None'})", callback_data="menu_leg")],
         [InlineKeyboardButton(f"Background (Selected: {user_choices[user_id]['background'] or 'None'})", callback_data="menu_background")],
+        [InlineKeyboardButton("Random", callback_data="random")],
         [InlineKeyboardButton("Reset", callback_data="reset")],
         [InlineKeyboardButton("Generate", callback_data="generate")]
     ]
@@ -78,6 +82,7 @@ async def menu_handler(update: Update, context):
             [InlineKeyboardButton("Stone Island", callback_data="head_stone_island")],
             [InlineKeyboardButton("Blunt", callback_data="head_blunt")],
             [InlineKeyboardButton("Glasses", callback_data="head_glasses")],
+            [InlineKeyboardButton("BK Crown", callback_data="head_BK_crown")],
             [InlineKeyboardButton("Back", callback_data="back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -86,6 +91,7 @@ async def menu_handler(update: Update, context):
     elif query.data == "menu_leg":
         keyboard = [
             [InlineKeyboardButton("Skate", callback_data="leg_skate")],
+            [InlineKeyboardButton("Jordans", callback_data="leg_jordans")],
             [InlineKeyboardButton("Back", callback_data="back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -97,6 +103,8 @@ async def menu_handler(update: Update, context):
             [InlineKeyboardButton("Mario", callback_data="background_mario")],
             [InlineKeyboardButton("Windows", callback_data="background_windows")],
             [InlineKeyboardButton("MCD", callback_data="background_MCD")],
+            [InlineKeyboardButton("Strip", callback_data="background_strip")],
+            [InlineKeyboardButton("MLK", callback_data="background_MLK")],
             [InlineKeyboardButton("Back", callback_data="back")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -105,6 +113,14 @@ async def menu_handler(update: Update, context):
     elif query.data == "reset":
         user_choices[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
         await query.edit_message_text("Selections have been reset.")
+        await start(update, context)
+
+    elif query.data == "random":
+        # Randomly select items for each category
+        user_choices[user_id]["hand"] = random.choice(list(ACCESSORY_DATA["hand"].keys()))
+        user_choices[user_id]["head"] = random.choice(list(ACCESSORY_DATA["head"].keys()))
+        user_choices[user_id]["leg"] = random.choice(list(ACCESSORY_DATA["leg"].keys()))
+        user_choices[user_id]["background"] = random.choice(BACKGROUND_DATA)
         await start(update, context)
 
     elif query.data == "generate":
@@ -189,7 +205,7 @@ def main():
     application = Application.builder().token("7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM").build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(menu_handler, pattern="^menu_.*$|^reset$|^generate$|^back$"))
+    application.add_handler(CallbackQueryHandler(menu_handler, pattern="^menu_.*$|^reset$|^generate$|^random$|^back$"))
     application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(hand|head|leg|background)_.+"))
 
     application.run_polling()
