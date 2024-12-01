@@ -37,17 +37,28 @@ user_data = {}
 
 # Команда /start
 async def start(update: Update, context):
+    user_id = update.message.from_user.id
+    user_data.setdefault(user_id, {"hand": None, "head": None, "leg": None, "background": None})
+    await show_main_menu(update, context)
+
+# Показать главное меню
+async def show_main_menu(update, context):
+    user_id = update.message.chat_id if hasattr(update, "message") else update.callback_query.from_user.id
+    selections = user_data.get(user_id, {})
     keyboard = [
-        [InlineKeyboardButton("Hand", callback_data="menu_hand")],
-        [InlineKeyboardButton("Head", callback_data="menu_head")],
-        [InlineKeyboardButton("Leg", callback_data="menu_leg")],
-        [InlineKeyboardButton("Background", callback_data="menu_background")],
+        [InlineKeyboardButton(f"Hand [{selections.get('hand', 'None')}]", callback_data="menu_hand")],
+        [InlineKeyboardButton(f"Head [{selections.get('head', 'None')}]", callback_data="menu_head")],
+        [InlineKeyboardButton(f"Leg [{selections.get('leg', 'None')}]", callback_data="menu_leg")],
+        [InlineKeyboardButton(f"Background [{selections.get('background', 'None')}]", callback_data="menu_background")],
         [InlineKeyboardButton("Random", callback_data="random")],
         [InlineKeyboardButton("Generate", callback_data="generate")],
         [InlineKeyboardButton("Reset", callback_data="reset")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
+    if hasattr(update, "message"):
+        await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
+    else:
+        await update.callback_query.edit_message_text("Choose a category:", reply_markup=reply_markup)
 
 # Обработчик выбора
 async def selection_handler(update: Update, context):
@@ -77,7 +88,7 @@ async def selection_handler(update: Update, context):
     elif query.data.startswith(("hand_", "head_", "leg_", "background_")):
         category, item = query.data.split("_", 1)
         user_data[user_id][category] = item
-        await query.edit_message_text(f"Selected: {item}.")
+        await show_main_menu(update, context)  # Возвращаем в главное меню
     elif query.data == "random":
         from random import choice
         user_data[user_id] = {
@@ -86,15 +97,15 @@ async def selection_handler(update: Update, context):
             "leg": choice(list(LEG_ACCESSORIES.keys())),
             "background": choice(list(BACKGROUNDS.keys())),
         }
-        await query.edit_message_text("Random selection completed.")
+        await show_main_menu(update, context)  # Возвращаем в главное меню
     elif query.data == "generate":
         await query.edit_message_text("Generating image...")
         await generate_image(user_id, context, query)
     elif query.data == "reset":
         user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-        await query.edit_message_text("Selections reset.")
+        await show_main_menu(update, context)  # Возвращаем в главное меню
     elif query.data == "main_menu":
-        await start(update, context)
+        await show_main_menu(update, context)
 
 # Генерация изображения
 async def generate_image(user_id, context, query):
