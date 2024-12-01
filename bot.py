@@ -14,6 +14,7 @@ HAND_ACCESSORIES = {
     "Uzi": "images/hand/uzi.png",
     "Cash": "images/hand/cash.png",
     "US Flag": "images/hand/US_flag.png",
+    "KFC": "images/hand/kfc.png",
 }
 HEAD_ACCESSORIES = {
     "Stone Island": "images/head/stone_island.png",
@@ -48,10 +49,10 @@ async def show_main_menu(update: Update, context):
     user_id = update.message.chat_id if hasattr(update, "message") else update.callback_query.from_user.id
     selections = user_data.get(user_id, {"hand": None, "head": None, "leg": None, "background": None})
     keyboard = [
-        [InlineKeyboardButton(f"Hand [{selections['hand']}]", callback_data="menu_hand")],
-        [InlineKeyboardButton(f"Head [{selections['head']}]", callback_data="menu_head")],
-        [InlineKeyboardButton(f"Leg [{selections['leg']}]", callback_data="menu_leg")],
-        [InlineKeyboardButton(f"Background [{selections['background']}]", callback_data="menu_background")],
+        [InlineKeyboardButton(f"Hand [{selections['hand'] or 'None'}]", callback_data="menu_hand")],
+        [InlineKeyboardButton(f"Head [{selections['head'] or 'None'}]", callback_data="menu_head")],
+        [InlineKeyboardButton(f"Leg [{selections['leg'] or 'None'}]", callback_data="menu_leg")],
+        [InlineKeyboardButton(f"Background [{selections['background'] or 'None'}]", callback_data="menu_background")],
         [InlineKeyboardButton("Random", callback_data="random")],
         [InlineKeyboardButton("Generate", callback_data="generate")],
         [InlineKeyboardButton("Reset", callback_data="reset")],
@@ -128,6 +129,7 @@ async def generate_image(user_id, context, query):
                 "Uzi": ([15, 249], 0.4),
                 "Cash": ([24, 269], 0.1),
                 "US Flag": ([-22, 137], 0.2),
+                "KFC": ([0, 221], 0.3),
             },
             "head": {
                 "Stone Island": ([30, -83], 0.7),
