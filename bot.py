@@ -1,24 +1,42 @@
 import os
-import random
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from PIL import Image
 
-# Define accessory data
-ACCESSORY_CATEGORIES = {
-    "hand": ["uzi.png", "cash.png", "phantom.png", "US_flag.png"],
-    "head": ["chrome_hat.png", "maga_hat.png", "wif_hat.png", "stone_island.png", "blunt.png", "glasses.png", "BK_crown.png"],
-    "leg": ["elf.png"],
-    "background": ["matrix.png", "mario.png", "windows.png", "strip.png", "MLK.png"]
+# Переменные окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+APP_URL = os.getenv("APP_URL")
+
+# Путь к папкам
+BASE_IMAGE_PATH = "images/nig.png"
+HAND_ACCESSORIES = {
+    "Phantom": "images/hand/phantom.png",
+    "Uzi": "images/hand/uzi.png",
+    "Cash": "images/hand/cash.png",
+    "US Flag": "images/hand/US_flag.png",
+}
+HEAD_ACCESSORIES = {
+    "Stone Island": "images/head/stone_island.png",
+    "Blunt": "images/head/blunt.png",
+    "Glasses": "images/head/glasses.png",
+    "BK Crown": "images/head/BK_crown.png",
+}
+LEG_ACCESSORIES = {
+    "Elf": "images/leg/elf.png",
+}
+BACKGROUNDS = {
+    "Matrix": "images/background/matrix.png",
+    "Mario": "images/background/mario.png",
+    "Windows": "images/background/windows.png",
+    "Strip": "images/background/strip.png",
+    "MLK": "images/background/MLK.png",
 }
 
-# User choices
-user_choices = {}
+# Хранилище данных пользователей
+user_data = {}
 
-# Start command handler
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    user_choices[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-
+# Команда /start
+async def start(update: Update, context):
     keyboard = [
         [InlineKeyboardButton("Hand", callback_data="menu_hand")],
         [InlineKeyboardButton("Head", callback_data="menu_head")],
@@ -26,109 +44,114 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Background", callback_data="menu_background")],
         [InlineKeyboardButton("Random", callback_data="random")],
         [InlineKeyboardButton("Generate", callback_data="generate")],
-        [InlineKeyboardButton("Reset", callback_data="reset")]
+        [InlineKeyboardButton("Reset", callback_data="reset")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Customize your image:", reply_markup=reply_markup)
+    await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
 
-# Menu selection handler
-async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Обработчик выбора
+async def selection_handler(update: Update, context):
     query = update.callback_query
     user_id = query.from_user.id
+    user_data.setdefault(user_id, {"hand": None, "head": None, "leg": None, "background": None})
+    
     await query.answer()
+    if query.data.startswith("menu_"):
+        category = query.data.split("_")[1]
+        if category == "hand":
+            options = HAND_ACCESSORIES
+        elif category == "head":
+            options = HEAD_ACCESSORIES
+        elif category == "leg":
+            options = LEG_ACCESSORIES
+        elif category == "background":
+            options = BACKGROUNDS
+        else:
+            return
+        keyboard = [
+            [InlineKeyboardButton(name, callback_data=f"{category}_{name}")] for name in options
+        ] + [[InlineKeyboardButton("Back", callback_data="main_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"Select an item for {category.capitalize()}:", reply_markup=reply_markup)
 
-    # Generate category menu
-    category = query.data.split("_")[1]
-    if category not in ACCESSORY_CATEGORIES:
-        await query.edit_message_text("Invalid category selected.")
-        return
-
-    buttons = [
-        [InlineKeyboardButton(item.split(".")[0].replace("_", " ").capitalize(), callback_data=f"{category}_{item}")]
-        for item in ACCESSORY_CATEGORIES[category]
-    ]
-    buttons.append([InlineKeyboardButton("Back to Menu", callback_data="main_menu")])
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await query.edit_message_text(f"Choose an item for {category.capitalize()}:", reply_markup=reply_markup)
-
-# Selection handler
-async def selection_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    await query.answer()
-
-    # Parse the selection
-    try:
-        category, item = query.data.split("_")
-    except ValueError:
-        await query.edit_message_text("Invalid selection. Please try again.")
-        return
-
-    if category in ACCESSORY_CATEGORIES and item in ACCESSORY_CATEGORIES[category]:
-        user_choices[user_id][category] = item
-        await query.edit_message_text(f"You selected: {item.split('.')[0].capitalize()}. Returning to main menu...")
+    elif query.data.startswith(("hand_", "head_", "leg_", "background_")):
+        category, item = query.data.split("_", 1)
+        user_data[user_id][category] = item
+        await query.edit_message_text(f"Selected: {item}.")
+    elif query.data == "random":
+        from random import choice
+        user_data[user_id] = {
+            "hand": choice(list(HAND_ACCESSORIES.keys())),
+            "head": choice(list(HEAD_ACCESSORIES.keys())),
+            "leg": choice(list(LEG_ACCESSORIES.keys())),
+            "background": choice(list(BACKGROUNDS.keys())),
+        }
+        await query.edit_message_text("Random selection completed.")
+    elif query.data == "generate":
+        await query.edit_message_text("Generating image...")
+        await generate_image(user_id, context, query)
+    elif query.data == "reset":
+        user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
+        await query.edit_message_text("Selections reset.")
+    elif query.data == "main_menu":
         await start(update, context)
-    else:
-        await query.edit_message_text("Invalid selection. Please try again.")
 
-# Random selection handler
-async def random_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.callback_query.from_user.id
-    await update.callback_query.answer()
-
-    # Randomly assign an accessory from each category
-    user_choices[user_id] = {
-        category: random.choice(items) for category, items in ACCESSORY_CATEGORIES.items()
+# Генерация изображения
+async def generate_image(user_id, context, query):
+    base_image = Image.open(BASE_IMAGE_PATH).convert("RGBA")
+    user_selections = user_data.get(user_id, {})
+    
+    # Добавляем фон
+    background_file = BACKGROUNDS.get(user_selections.get("background"))
+    if background_file:
+        background = Image.open(background_file).resize(base_image.size).convert("RGBA")
+        base_image = Image.alpha_composite(background, base_image)
+    
+    # Позиции и масштабы
+    positions = {
+        "hand": {
+            "Phantom": ([3, 242], 0.3),
+            "Uzi": ([15, 249], 0.4),
+            "Cash": ([24, 269], 0.1),
+            "US Flag": ([-22, 137], 0.2),
+        },
+        "head": {
+            "Stone Island": ([30, -83], 0.7),
+            "Blunt": ([258, 252], 0.3),
+            "Glasses": ([92, 120], 0.3),
+            "BK Crown": ([123, -13], 0.2),
+        },
+        "leg": {
+            "Elf": ([240, 183], 0.3),
+        },
     }
+    
+    # Добавляем аксессуары
+    for category in ["hand", "head", "leg"]:
+        item = user_selections.get(category)
+        if item:
+            file_path = HAND_ACCESSORIES.get(item) or HEAD_ACCESSORIES.get(item) or LEG_ACCESSORIES.get(item)
+            position, scale = positions[category].get(item, ([0, 0], 1.0))
+            if file_path:
+                accessory = Image.open(file_path).convert("RGBA")
+                accessory = accessory.resize((int(accessory.width * scale), int(accessory.height * scale)))
+                base_image.paste(accessory, position, accessory)
+    
+    # Сохраняем изображение
+    output_path = f"output/result_{user_id}.png"
+    base_image.save(output_path)
+    await query.message.reply_photo(photo=open(output_path, "rb"))
 
-    await update.callback_query.edit_message_text("Random selections made! Returning to main menu...")
-    await start(update, context)
-
-# Generate image handler
-async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    await query.answer("Generating image...")
-
-    # Process and generate the image (mock example here)
-    selections = user_choices.get(user_id, {})
-    output_text = "Generating image with the following selections:\n"
-    for category, item in selections.items():
-        output_text += f"{category.capitalize()}: {item or 'None'}\n"
-
-    await query.edit_message_text(output_text)
-
-# Reset handler
-async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.callback_query.from_user.id
-    user_choices[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-
-    await update.callback_query.answer("Selections reset.")
-    await start(update, context)
-
-# Main function to start the bot
+# Основная функция
 def main():
-    BOT_TOKEN = os.getenv("BOT_TOKEN")
-    APP_URL = os.getenv("APP_URL")
-
-    if not BOT_TOKEN or not APP_URL:
-        raise ValueError("BOT_TOKEN and APP_URL environment variables must be set.")
-
     application = Application.builder().token(BOT_TOKEN).build()
-
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(menu_handler, pattern="^menu_"))
-    application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(hand|head|leg|background)_.+"))
-    application.add_handler(CallbackQueryHandler(random_selection, pattern="^random$"))
-    application.add_handler(CallbackQueryHandler(generate_image, pattern="^generate$"))
-    application.add_handler(CallbackQueryHandler(reset, pattern="^reset$"))
-
-    # Run webhook
+    application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(menu|hand|head|leg|background|random|generate|reset)_.*"))
     application.run_webhook(
         listen="0.0.0.0",
-        port=443,
-        url_path=BOT_TOKEN,
-        webhook_url=f"{APP_URL}/{BOT_TOKEN}",
+        port=8443,
+        url_path=f"{BOT_TOKEN}",
+        webhook_url=f"{APP_URL}/webhook",
     )
 
 if __name__ == "__main__":
