@@ -129,6 +129,23 @@ async def menu_handler(update: Update, context):
     elif query.data == "back":
         await start(update, context)
 
+# Selection handler (обработка выбора аксессуаров и фонов)
+async def selection_handler(update: Update, context):
+    query = update.callback_query
+    user_id = query.from_user.id
+    await query.answer()
+
+    try:
+        part, key = query.data.split("_", maxsplit=1)
+        if part in ACCESSORY_DATA or part == "background":
+            user_choices[user_id][part] = key if part == "background" else f"{key}.png"
+            print(f"User {user_id} selected {part}: {user_choices[user_id][part]}")
+            await start(update, context)
+        else:
+            await query.edit_message_text("Invalid selection. Please try again.")
+    except ValueError:
+        await query.edit_message_text("Invalid selection. Please try again.")
+
 # Generate the final image
 async def generate_image(user_id, query):
     try:
