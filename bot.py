@@ -43,7 +43,7 @@ async def start(update: Update, context):
 
 # Показать главное меню
 async def show_main_menu(update, context):
-    user_id = update.message.chat_id if hasattr(update, "message") else update.callback_query.from_user.id
+    user_id = update.effective_user.id
     selections = user_data.get(user_id, {})
     keyboard = [
         [InlineKeyboardButton(f"Hand [{selections.get('hand', 'None')}]", callback_data="menu_hand")],
@@ -55,9 +55,9 @@ async def show_main_menu(update, context):
         [InlineKeyboardButton("Reset", callback_data="reset")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    if hasattr(update, "message"):
+    if update.message:
         await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
-    else:
+    elif update.callback_query:
         await update.callback_query.edit_message_text("Choose a category:", reply_markup=reply_markup)
 
 # Обработчик выбора
