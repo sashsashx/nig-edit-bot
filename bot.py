@@ -116,11 +116,13 @@ async def generate_image(user_id, context, query):
             "leg": {"Elf": ([240, 183], 0.3), "Skate": ([19, 225], 0.9)},
         }
 
+        # Добавляем фон
         background_file = BACKGROUNDS.get(user_selections.get("background"))
         if background_file:
             background = Image.open(background_file).resize(base_image.size).convert("RGBA")
             base_image = Image.alpha_composite(background, base_image)
 
+        # Добавляем аксессуары
         for category in ["hand", "head", "leg"]:
             item = user_selections.get(category)
             if item:
