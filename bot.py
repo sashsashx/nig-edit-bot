@@ -23,6 +23,7 @@ HEAD_ACCESSORIES = {
 }
 LEG_ACCESSORIES = {
     "Elf": "images/leg/elf.png",
+    "Skate": "images/leg/skate.png",  # Добавлена опция Skate
 }
 BACKGROUNDS = {
     "Matrix": "images/background/matrix.png",
@@ -38,7 +39,7 @@ user_data = {}
 # Команда /start
 async def start(update: Update, context):
     user_id = update.message.from_user.id
-    user_data.setdefault(user_id, {"hand": None, "head": None, "leg": None, "background": None})
+    user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}  # Сброс данных
     await show_main_menu(update, context)
 
 # Показать главное меню
@@ -102,7 +103,7 @@ async def selection_handler(update: Update, context):
         await query.edit_message_text("Generating image...")
         await generate_image(user_id, context, query)
     elif query.data == "reset":
-        user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
+        user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}  # Сброс данных
         await show_main_menu(update, context)  # Возвращаем в главное меню
     elif query.data == "main_menu":
         await show_main_menu(update, context)
@@ -134,6 +135,7 @@ async def generate_image(user_id, context, query):
         },
         "leg": {
             "Elf": ([240, 183], 0.3),
+            "Skate": ([19, 225], 0.9),  # Позиция и масштаб для Skate
         },
     }
     
