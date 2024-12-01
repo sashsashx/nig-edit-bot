@@ -38,12 +38,19 @@ BACKGROUNDS = {
 # Хранилище данных пользователей
 user_data = {}
 
-# Отладочная функция
+# Логирование для отладки
 def log_debug(message):
     print(f"[DEBUG] {message}")
 
 # Команда /start
 async def start(update: Update, context):
+    user_id = (
+        update.message.from_user.id
+        if update.message
+        else update.callback_query.from_user.id
+    )
+    user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
+
     keyboard = [
         [InlineKeyboardButton("Hand", callback_data="menu_hand")],
         [InlineKeyboardButton("Head", callback_data="menu_head")],
@@ -54,10 +61,11 @@ async def start(update: Update, context):
         [InlineKeyboardButton("Reset", callback_data="reset")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    user_id = update.message.from_user.id
-    user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-    await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
-    log_debug(f"/start triggered by user {user_id}")
+    if update.message:
+        await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
+    elif update.callback_query:
+        await update.callback_query.edit_message_text("Choose a category:", reply_markup=reply_markup)
+    log_debug(f"Main menu displayed for user {user_id}")
 
 # Обработчик выбора
 async def selection_handler(update: Update, context):
@@ -114,13 +122,13 @@ async def generate_image(user_id, context, query):
     try:
         base_image = Image.open(BASE_IMAGE_PATH).convert("RGBA")
         user_selections = user_data.get(user_id, {})
-        
+
         # Добавляем фон
         background_file = BACKGROUNDS.get(user_selections.get("background"))
         if background_file:
             background = Image.open(background_file).resize(base_image.size).convert("RGBA")
             base_image = Image.alpha_composite(background, base_image)
-        
+
         # Позиции и масштабы
         positions = {
             "hand": {
@@ -142,7 +150,7 @@ async def generate_image(user_id, context, query):
                 "Skate": ([30, 250], 0.6),
             },
         }
-        
+
         # Добавляем аксессуары
         for category in ["hand", "head", "leg"]:
             item = user_selections.get(category)
@@ -153,7 +161,7 @@ async def generate_image(user_id, context, query):
                     accessory = Image.open(file_path).convert("RGBA")
                     accessory = accessory.resize((int(accessory.width * scale), int(accessory.height * scale)))
                     base_image.paste(accessory, position, accessory)
-        
+
         # Сохраняем изображение
         output_path = f"output/result_{user_id}.png"
         base_image.save(output_path)
