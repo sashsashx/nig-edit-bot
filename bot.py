@@ -144,9 +144,6 @@ async def generate_image(user_id, context, query):
 
 # Основная функция
 def main():
-    BOT_TOKEN = "7967474690:AAE1AkydRFr-Xi-OOBRTv1pHkrrmVLYofVM"
-    APP_URL = "https://nig-edit-bot.onrender.com"
-
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(menu|hand|head|leg|background|random|generate|reset)_.*"))
