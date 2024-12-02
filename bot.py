@@ -17,7 +17,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 APP_URL = os.getenv("APP_URL")
 
 # Пути к ресурсам
-BASE_IMAGE_PATH = "images/base.png"
+BASE_IMAGE_PATH = "images/nig.png"
 HAND_ACCESSORIES = {
     "Coffee": "images/hand/coffee.png",
     "KFC": "images/hand/kfc.png",
