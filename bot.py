@@ -1,5 +1,6 @@
 import os
 import logging
+import random
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from PIL import Image
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 APP_URL = os.getenv("APP_URL")
 
-# Путь к папкам
+# Пути к ресурсам
 BASE_IMAGE_PATH = "images/nig.png"
 HAND_ACCESSORIES = {
     "Coffee": "images/hand/coffee.png",
@@ -132,13 +133,11 @@ async def selection_handler(update: Update, context):
         user_data[user_id][category] = item
         await show_main_menu(update, context)
     elif query.data == "random":
-        from random import choice
-
         user_data[user_id] = {
-            "hand": choice(list(HAND_ACCESSORIES.keys())),
-            "head": choice(list(HEAD_ACCESSORIES.keys())),
-            "leg": choice(list(LEG_ACCESSORIES.keys())),
-            "background": choice(list(BACKGROUNDS.keys())),
+            "hand": random.choice(list(HAND_ACCESSORIES.keys())),
+            "head": random.choice(list(HEAD_ACCESSORIES.keys())),
+            "leg": random.choice(list(LEG_ACCESSORIES.keys())),
+            "background": random.choice(list(BACKGROUNDS.keys())),
         }
         await show_main_menu(update, context)
     elif query.data == "generate":
@@ -154,54 +153,15 @@ async def selection_handler(update: Update, context):
 async def generate_image(user_id, context, query):
     try:
         logger.info(f"Начинаем генерацию изображения для пользователя {user_id}")
-
         base_image = Image.open(BASE_IMAGE_PATH).convert("RGBA")
-        user_selections = user_data.get(user_id, {})
+        selections = user_data[user_id]
         
-        # Добавляем фон
-        background_file = BACKGROUNDS.get(user_selections.get("background"))
-        if background_file:
-            background = Image.open(background_file).resize(base_image.size).convert("RGBA")
-            base_image = Image.alpha_composite(background, base_image)
-        
-        # Позиции и масштабы
-        positions = {
-            "hand": {
-                "Coffee": {"position": [-45, 208], "scale": 0.5},
-                "KFC": {"position": [0, 221], "scale": 0.3},
-                "Uzi": {"position": [15, 249], "scale": 0.4},
-                "Cash": {"position": [24, 269], "scale": 0.1},
-                "Phantom": {"position": [3, 242], "scale": 0.3},
-                "US Flag": {"position": [-22, 137], "scale": 0.2},
-            },
-            "head": {
-                "Maga Hat": {"position": [0, -15], "scale": 0.5},
-                "WIF Hat": {"position": [45, -43], "scale": 0.7},
-                "Chrome Hat": {"position": [70, -29], "scale": 0.3},
-                "Stone Island": {"position": [30, -83], "scale": 0.7},
-                "Blunt": {"position": [258, 252], "scale": 0.3},
-                "Glasses": {"position": [92, 120], "scale": 0.3},
-                "BK Crown": {"position": [123, -13], "scale": 0.2},
-            },
-            "leg": {
-                "Elf": {"position": [240, 183], "scale": 0.3},
-                "Skate": {"position": [19, 225], "scale": 0.9},
-            },
-        }
-        
-        # Добавляем аксессуары
-        for category in ["hand", "head", "leg"]:
-            item = user_selections.get(category)
-            if item:
-                file_path = HAND_ACCESSORIES.get(item) or HEAD_ACCESSORIES.get(item) or LEG_ACCESSORIES.get(item)
-                if file_path:
-                    position = positions[category][item]["position"]
-                    scale = positions[category][item]["scale"]
-                    accessory = Image.open(file_path).convert("RGBA")
-                    accessory = accessory.resize((int(accessory.width * scale), int(accessory.height * scale)))
-                    base_image.paste(accessory, position, accessory)
-        
-        # Сохраняем изображение
+        for category, items in [("hand", HAND_ACCESSORIES), ("head", HEAD_ACCESSORIES), ("leg", LEG_ACCESSORIES)]:
+            if selections[category]:
+                image_path = items[selections[category]]
+                accessory = Image.open(image_path).convert("RGBA")
+                base_image.paste(accessory, (0, 0), accessory)
+
         output_path = f"output/result_{user_id}.png"
         base_image.save(output_path)
         await query.message.reply_photo(photo=open(output_path, "rb"))
@@ -213,7 +173,7 @@ async def generate_image(user_id, context, query):
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(menu|hand|head|leg|background|random|generate|reset)_.*"))
+    application.add_handler(CallbackQueryHandler(selection_handler, pattern=".*"))
 
     application.run_webhook(
         listen="0.0.0.0",
