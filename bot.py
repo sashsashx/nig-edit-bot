@@ -51,17 +51,21 @@ user_data = {}
 
 # Команда /start
 async def start(update: Update, context):
-    user_id = update.message.from_user.id
+    user_id = get_user_id(update)
     user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
     await show_main_menu(update, context)
 
+# Получение user_id
+def get_user_id(update: Update):
+    if update.message:
+        return update.message.from_user.id
+    elif update.callback_query:
+        return update.callback_query.from_user.id
+    return None
+
 # Отображение главного меню
 async def show_main_menu(update: Update, context):
-    user_id = (
-        update.message.chat_id
-        if hasattr(update, "message")
-        else update.callback_query.from_user.id
-    )
+    user_id = get_user_id(update)
     selections = user_data.get(user_id, {})
     keyboard = [
         [
@@ -93,9 +97,9 @@ async def show_main_menu(update: Update, context):
         [InlineKeyboardButton("Reset", callback_data="reset")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    if hasattr(update, "message"):
+    if update.message:
         await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
-    else:
+    elif update.callback_query:
         await update.callback_query.edit_message_text(
             "Choose a category:", reply_markup=reply_markup
         )
@@ -103,7 +107,7 @@ async def show_main_menu(update: Update, context):
 # Обработчик выбора
 async def selection_handler(update: Update, context):
     query = update.callback_query
-    user_id = query.from_user.id
+    user_id = get_user_id(update)
     user_data.setdefault(user_id, {"hand": None, "head": None, "leg": None, "background": None})
 
     await query.answer()
