@@ -153,49 +153,52 @@ async def selection_handler(update: Update, context):
 async def generate_image(user_id, query):
     try:
         logger.info(f"Начинаем генерацию изображения для пользователя {user_id}")
+        # Загружаем базовое изображение
         base_image = Image.open(BASE_IMAGE_PATH).convert("RGBA")
         logger.info("Базовое изображение загружено.")
-        selections = user_data[user_id]
+        
+        # Устанавливаем размер (например, размер базового изображения)
+        output_size = base_image.size
+
+        # Подгоняем фон, если он выбран
+        if user_data[user_id]["background"]:
+            background_path = BACKGROUNDS.get(user_data[user_id]["background"])
+            if background_path:
+                logger.info(f"Добавляем фон: {background_path}")
+                background = Image.open(background_path).convert("RGBA")
+                background = background.resize(output_size, Image.Resampling.LANCZOS)
+                base_image = Image.alpha_composite(background, base_image)
+
+        # Добавляем аксессуары
         for category in ["hand", "head", "leg"]:
-            if selections[category]:
-                accessory_name = selections[category]
+            if user_data[user_id][category]:
+                accessory_name = user_data[user_id][category]
                 accessory_path = {
                     "hand": HAND_ACCESSORIES,
                     "head": HEAD_ACCESSORIES,
                     "leg": LEG_ACCESSORIES,
-                }[category].get(accessory_name)
-                if not accessory_path:
-                    logger.error(f"Путь для аксессуара {accessory_name} не найден!")
-                    continue
+                }[category][accessory_name]
 
-                pos_data = POSITIONS[category].get(accessory_name)
-                if not pos_data:
-                    logger.error(f"Данные для позиции {accessory_name} не найдены!")
-                    continue
-
-                logger.info(f"Добавляем аксессуар: {accessory_path}")
+                pos_data = POSITIONS[category][accessory_name]
                 accessory = Image.open(accessory_path).convert("RGBA")
-                pos = pos_data["position"]
-                scale = pos_data["scale"]
+                
+                # Масштабируем аксессуар
                 accessory = accessory.resize(
-                    (int(accessory.width * scale), int(accessory.height * scale)),
-                    Image.Resampling.LANCZOS,
+                    (int(accessory.width * pos_data["scale"]), int(accessory.height * pos_data["scale"])),
+                    Image.Resampling.LANCZOS
                 )
-                base_image.paste(accessory, pos, accessory)
+                
+                # Накладываем аксессуар
+                base_image.paste(accessory, pos_data["position"], accessory)
 
-        if selections["background"]:
-            background_path = BACKGROUNDS.get(selections["background"])
-            if background_path:
-                logger.info(f"Добавляем фон: {background_path}")
-                background = Image.open(background_path).convert("RGBA")
-                base_image = Image.alpha_composite(background, base_image)
-
+        # Сохраняем финальное изображение
         output_path = f"output/result_{user_id}.png"
         base_image.save(output_path)
         await query.message.reply_photo(photo=open(output_path, "rb"))
+
     except Exception as e:
         logger.error(f"Ошибка генерации: {e}")
-        await query.message.reply_text("Ошибка при генерации изображения. Убедитесь, что все элементы выбраны.")
+        await query.message.reply_text("Ошибка при генерации изображения. Проверьте данные и повторите попытку.")
 
 # Основная функция
 def main():
