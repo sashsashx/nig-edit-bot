@@ -1,18 +1,13 @@
 import os
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from PIL import Image
 
-# Папки с ресурсами
-BASE_DIR = "assets"
-OUTPUT_DIR = "output"
-BASE_IMAGE_PATH = os.path.join(BASE_DIR, "base.png")
-CATEGORIES = {
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN is not set in environment variables")
+
+accessories = {
     "hand": {
         "coffee.png": {"position": [-45, 208], "scale": 0.5},
         "kfc.png": {"position": [0, 221], "scale": 0.3},
@@ -36,112 +31,98 @@ CATEGORIES = {
     },
 }
 
-# Состояния пользователей
-user_states = {}
+backgrounds = {
+    "matrix.png": "Matrix",
+    "mario.png": "Mario",
+    "windows.png": "Windows",
+    "strip.png": "Strip",
+    "mlk.png": "MLK",
+}
+
+user_choices = {}
+
+
+def reset_choices(user_id):
+    user_choices[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Стартовое меню"""
-    user_id = update.effective_user.id
-    user_states[user_id] = {category: None for category in CATEGORIES}
+    user_id = update.message.chat_id
+    reset_choices(user_id)
     await show_main_menu(update, context)
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Главное меню"""
-    user_id = update.effective_user.id
-    selected = user_states[user_id]
-    buttons = [
-        [InlineKeyboardButton(f"Hand: {selected['hand'] or 'None'}", callback_data="menu_hand")],
-        [InlineKeyboardButton(f"Head: {selected['head'] or 'None'}", callback_data="menu_head")],
-        [InlineKeyboardButton(f"Leg: {selected['leg'] or 'None'}", callback_data="menu_leg")],
-        [InlineKeyboardButton("Randomize", callback_data="randomize")],
+    user_id = update.callback_query.from_user.id if update.callback_query else update.message.chat_id
+    choices = user_choices[user_id]
+    keyboard = [
+        [InlineKeyboardButton("Hand", callback_data="menu_hand")],
+        [InlineKeyboardButton("Head", callback_data="menu_head")],
+        [InlineKeyboardButton("Leg", callback_data="menu_leg")],
+        [InlineKeyboardButton("Background", callback_data="menu_background")],
         [InlineKeyboardButton("Reset", callback_data="reset")],
+        [InlineKeyboardButton("Random", callback_data="random")],
         [InlineKeyboardButton("Generate", callback_data="generate")],
     ]
-    reply_markup = InlineKeyboardMarkup(buttons)
+    message = f"Your selections:\nHand: {choices['hand']}\nHead: {choices['head']}\nLeg: {choices['leg']}\nBackground: {choices['background']}"
+    reply_markup = InlineKeyboardMarkup(keyboard)
     if update.callback_query:
-        await update.callback_query.edit_message_text("Main Menu", reply_markup=reply_markup)
+        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
     else:
-        await update.message.reply_text("Main Menu", reply_markup=reply_markup)
-
-
-async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка выбора категории"""
-    category = update.callback_query.data.split("_")[1]
-    user_id = update.effective_user.id
-    buttons = [
-        [
-            InlineKeyboardButton(item, callback_data=f"select_{category}_{item}")
-            for item in CATEGORIES[category]
-        ],
-        [InlineKeyboardButton("Back", callback_data="main_menu")],
-    ]
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await update.callback_query.edit_message_text(f"Select {category.capitalize()}", reply_markup=reply_markup)
-
-
-async def select_item(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка выбора элемента"""
-    _, category, item = update.callback_query.data.split("_")
-    user_id = update.effective_user.id
-    user_states[user_id][category] = item
-    await show_main_menu(update, context)
-
-
-async def randomize(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Случайный выбор"""
-    import random
-
-    user_id = update.effective_user.id
-    for category in CATEGORIES:
-        user_states[user_id][category] = random.choice(list(CATEGORIES[category].keys()))
-    await show_main_menu(update, context)
-
-
-async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сброс выбора"""
-    user_id = update.effective_user.id
-    user_states[user_id] = {category: None for category in CATEGORIES}
-    await show_main_menu(update, context)
+        await update.message.reply_text(message, reply_markup=reply_markup)
 
 
 async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Генерация изображения"""
-    user_id = update.effective_user.id
-    selections = user_states[user_id]
+    user_id = update.callback_query.from_user.id
+    choices = user_choices[user_id]
+    base_image = Image.open("base.png")
+    for category, choice in choices.items():
+        if choice:
+            accessory = accessories[category][choice]
+            accessory_image = Image.open(f"{category}/{choice}")
+            accessory_image = accessory_image.resize(
+                [int(dim * accessory["scale"]) for dim in accessory_image.size]
+            )
+            base_image.paste(accessory_image, accessory["position"], accessory_image)
+    output_path = f"output/result_{user_id}.png"
+    base_image.save(output_path)
+    await update.callback_query.message.reply_photo(photo=open(output_path, "rb"))
 
-    try:
-        base = Image.open(BASE_IMAGE_PATH).convert("RGBA")
-        for category, item in selections.items():
-            if item:
-                accessory_path = os.path.join(BASE_DIR, category, item)
-                accessory = Image.open(accessory_path).convert("RGBA")
-                config = CATEGORIES[category][item]
-                accessory = accessory.resize(
-                    (int(accessory.width * config["scale"]), int(accessory.height * config["scale"]))
-                )
-                base.paste(accessory, tuple(config["position"]), accessory)
 
-        output_path = os.path.join(OUTPUT_DIR, f"result_{user_id}.png")
-        base.save(output_path)
-        with open(output_path, "rb") as img:
-            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=img)
-    except Exception as e:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Error: {e}")
+async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.callback_query.from_user.id
+    query_data = update.callback_query.data
+    if query_data == "reset":
+        reset_choices(user_id)
+    elif query_data == "random":
+        for category in user_choices[user_id]:
+            if category != "background":
+                user_choices[user_id][category] = random.choice(list(accessories[category].keys()))
+            else:
+                user_choices[user_id]["background"] = random.choice(list(backgrounds.keys()))
+    elif query_data.startswith("menu_"):
+        category = query_data.split("_")[1]
+        keyboard = [
+            [InlineKeyboardButton(name, callback_data=f"select_{category}_{name}")]
+            for name in accessories[category]
+        ]
+        keyboard.append([InlineKeyboardButton("Back", callback_data="main_menu")])
+        await update.callback_query.edit_message_text(
+            f"Choose an item for {category.capitalize()}:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+    elif query_data.startswith("select_"):
+        _, category, choice = query_data.split("_")
+        user_choices[user_id][category] = choice
+    elif query_data == "generate":
+        await generate_image(update, context)
+    await show_main_menu(update, context)
 
 
 def main():
-    """Запуск бота"""
-    app = Application.builder().token("YOUR_BOT_TOKEN").build()
+    app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(show_main_menu, pattern="main_menu"))
-    app.add_handler(CallbackQueryHandler(handle_category, pattern="menu_"))
-    app.add_handler(CallbackQueryHandler(select_item, pattern="select_"))
-    app.add_handler(CallbackQueryHandler(randomize, pattern="randomize"))
-    app.add_handler(CallbackQueryHandler(reset, pattern="reset"))
-    app.add_handler(CallbackQueryHandler(generate_image, pattern="generate"))
-
+    app.add_handler(CallbackQueryHandler(menu_handler))
     app.run_polling()
 
 
