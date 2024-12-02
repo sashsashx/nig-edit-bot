@@ -1,186 +1,132 @@
-import os
 import logging
-import random
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from PIL import Image
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler
 
-# Настройка логирования
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+# Логирование
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Переменные окружения
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-APP_URL = os.getenv("APP_URL")
+# Путь к базовому изображению
+BASE_IMAGE_PATH = "images/base.png"
 
-# Пути к ресурсам
-BASE_IMAGE_PATH = "images/nig.png"
+# Данные аксессуаров
 HAND_ACCESSORIES = {
-    "Coffee": "images/hand/coffee.png",
-    "KFC": "images/hand/kfc.png",
-    "Uzi": "images/hand/uzi.png",
-    "Cash": "images/hand/cash.png",
-    "Phantom": "images/hand/phantom.png",
-    "US Flag": "images/hand/US_flag.png",
-}
-HEAD_ACCESSORIES = {
-    "Maga Hat": "images/head/maga_hat.png",
-    "WIF Hat": "images/head/wif_hat.png",
-    "Chrome Hat": "images/head/chrome_hat.png",
-    "Stone Island": "images/head/stone_island.png",
-    "Blunt": "images/head/blunt.png",
-    "Glasses": "images/head/glasses.png",
-    "BK Crown": "images/head/BK_crown.png",
-}
-LEG_ACCESSORIES = {
-    "Elf": "images/leg/elf.png",
-    "Skate": "images/leg/skate.png",
-}
-BACKGROUNDS = {
-    "Matrix": "images/background/matrix.png",
-    "Mario": "images/background/mario.png",
-    "Windows": "images/background/windows.png",
-    "Strip": "images/background/strip.png",
-    "MLK": "images/background/MLK.png",
+    "Coffee": {"path": "images/hand/coffee.png", "position": (-45, 208), "scale": 0.5},
+    "KFC": {"path": "images/hand/kfc.png", "position": (0, 221), "scale": 0.3},
+    "Uzi": {"path": "images/hand/uzi.png", "position": (15, 249), "scale": 0.4},
+    "Cash": {"path": "images/hand/cash.png", "position": (24, 269), "scale": 0.1},
+    "Phantom": {"path": "images/hand/phantom.png", "position": (3, 242), "scale": 0.3},
+    "US Flag": {"path": "images/hand/US_flag.png", "position": (-22, 137), "scale": 0.2},
 }
 
-# Хранилище данных пользователей
+HEAD_ACCESSORIES = {
+    "Maga Hat": {"path": "images/head/maga_hat.png", "position": (0, -15), "scale": 0.5},
+    "WIF Hat": {"path": "images/head/wif_hat.png", "position": (45, -43), "scale": 0.7},
+    "Chrome Hat": {"path": "images/head/chrome_hat.png", "position": (70, -29), "scale": 0.3},
+    "Stone Island": {"path": "images/head/stone_island.png", "position": (30, -83), "scale": 0.7},
+    "Blunt": {"path": "images/head/blunt.png", "position": (258, 252), "scale": 0.3},
+    "Glasses": {"path": "images/head/glasses.png", "position": (92, 120), "scale": 0.3},
+    "BK Crown": {"path": "images/head/BK_crown.png", "position": (123, -13), "scale": 0.2},
+}
+
+LEG_ACCESSORIES = {
+    "Elf": {"path": "images/leg/elf.png", "position": (240, 183), "scale": 0.3},
+    "Skate": {"path": "images/leg/skate.png", "position": (19, 225), "scale": 0.9},
+}
+
+# Данные пользователей
 user_data = {}
 
-# Команда /start
+# Функция старта
 async def start(update: Update, context):
-    user_id = get_user_id(update)
-    user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
+    user_id = update.message.from_user.id
+    user_data[user_id] = {"hand": None, "head": None, "leg": None}
     await show_main_menu(update, context)
 
-# Получение user_id
-def get_user_id(update: Update):
-    if update.message:
-        return update.message.from_user.id
-    elif update.callback_query:
-        return update.callback_query.from_user.id
-    return None
-
-# Отображение главного меню
+# Главное меню
 async def show_main_menu(update: Update, context):
-    user_id = get_user_id(update)
-    selections = user_data.get(user_id, {})
+    user_id = update.effective_user.id
+    selections = user_data.get(user_id, {"hand": None, "head": None, "leg": None})
     keyboard = [
         [
-            InlineKeyboardButton(
-                f"Hand [{selections.get('hand', 'None')}]",
-                callback_data="menu_hand",
-            )
+            InlineKeyboardButton(f"Hand: {selections['hand'] or 'None'}", callback_data="hand"),
+            InlineKeyboardButton(f"Head: {selections['head'] or 'None'}", callback_data="head"),
+            InlineKeyboardButton(f"Leg: {selections['leg'] or 'None'}", callback_data="leg"),
         ],
-        [
-            InlineKeyboardButton(
-                f"Head [{selections.get('head', 'None')}]",
-                callback_data="menu_head",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                f"Leg [{selections.get('leg', 'None')}]",
-                callback_data="menu_leg",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                f"Background [{selections.get('background', 'None')}]",
-                callback_data="menu_background",
-            )
-        ],
-        [InlineKeyboardButton("Random", callback_data="random")],
-        [InlineKeyboardButton("Generate", callback_data="generate")],
-        [InlineKeyboardButton("Reset", callback_data="reset")],
+        [InlineKeyboardButton("Generate", callback_data="generate"), InlineKeyboardButton("Reset", callback_data="reset")],
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if update.message:
-        await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
-    elif update.callback_query:
-        await update.callback_query.edit_message_text(
-            "Choose a category:", reply_markup=reply_markup
-        )
+    markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Customize your character:", reply_markup=markup)
 
-# Обработчик выбора
-async def selection_handler(update: Update, context):
+# Выбор категории
+async def category_handler(update: Update, context):
     query = update.callback_query
-    user_id = get_user_id(update)
-    user_data.setdefault(user_id, {"hand": None, "head": None, "leg": None, "background": None})
+    category = query.data
+    query.answer()
+    accessories = (
+        HAND_ACCESSORIES if category == "hand" else HEAD_ACCESSORIES if category == "head" else LEG_ACCESSORIES
+    )
+    keyboard = [[InlineKeyboardButton(item, callback_data=f"{category}:{item}")] for item in accessories]
+    keyboard.append([InlineKeyboardButton("Back", callback_data="back")])
+    markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(f"Select an accessory for {category}:", reply_markup=markup)
 
-    await query.answer()
-    if query.data.startswith("menu_"):
-        category = query.data.split("_")[1]
-        options = {
-            "hand": HAND_ACCESSORIES,
-            "head": HEAD_ACCESSORIES,
-            "leg": LEG_ACCESSORIES,
-            "background": BACKGROUNDS,
-        }.get(category, {})
-        keyboard = [
-            [InlineKeyboardButton(name, callback_data=f"{category}_{name}")]
-            for name in options
-        ] + [[InlineKeyboardButton("Back", callback_data="main_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(
-            f"Select an item for {category.capitalize()}:", reply_markup=reply_markup
-        )
-    elif query.data.startswith(("hand_", "head_", "leg_", "background_")):
-        category, item = query.data.split("_", 1)
-        user_data[user_id][category] = item
-        await show_main_menu(update, context)
-    elif query.data == "random":
-        user_data[user_id] = {
-            "hand": random.choice(list(HAND_ACCESSORIES.keys())),
-            "head": random.choice(list(HEAD_ACCESSORIES.keys())),
-            "leg": random.choice(list(LEG_ACCESSORIES.keys())),
-            "background": random.choice(list(BACKGROUNDS.keys())),
-        }
-        await show_main_menu(update, context)
-    elif query.data == "generate":
-        await query.edit_message_text("Generating image...")
-        await generate_image(user_id, context, query)
-    elif query.data == "reset":
-        user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-        await show_main_menu(update, context)
-    elif query.data == "main_menu":
-        await show_main_menu(update, context)
+# Обработчик выбора аксессуаров
+async def accessory_handler(update: Update, context):
+    query = update.callback_query
+    category, selection = query.data.split(":")
+    user_id = query.from_user.id
+    user_data[user_id][category] = selection
+    await show_main_menu(update, context)
 
 # Генерация изображения
-async def generate_image(user_id, context, query):
+async def generate_image(update: Update, context):
+    query = update.callback_query
+    user_id = query.from_user.id
     try:
-        logger.info(f"Начинаем генерацию изображения для пользователя {user_id}")
         base_image = Image.open(BASE_IMAGE_PATH).convert("RGBA")
         selections = user_data[user_id]
-        
-        for category, items in [("hand", HAND_ACCESSORIES), ("head", HEAD_ACCESSORIES), ("leg", LEG_ACCESSORIES)]:
+        for category, items in [
+            ("hand", HAND_ACCESSORIES),
+            ("head", HEAD_ACCESSORIES),
+            ("leg", LEG_ACCESSORIES),
+        ]:
             if selections[category]:
-                image_path = items[selections[category]]
-                accessory = Image.open(image_path).convert("RGBA")
-                base_image.paste(accessory, (0, 0), accessory)
-
+                accessory_data = items[selections[category]]
+                accessory_image = Image.open(accessory_data["path"]).convert("RGBA")
+                position = accessory_data["position"]
+                scale = accessory_data["scale"]
+                accessory_image = accessory_image.resize(
+                    (int(accessory_image.width * scale), int(accessory_image.height * scale)), Image.ANTIALIAS
+                )
+                base_image.paste(accessory_image, position, accessory_image)
         output_path = f"output/result_{user_id}.png"
         base_image.save(output_path)
         await query.message.reply_photo(photo=open(output_path, "rb"))
     except Exception as e:
         logger.error(f"Ошибка генерации: {e}")
-        await query.message.reply_text("Ошибка генерации изображения. Попробуйте снова.")
+        await query.message.reply_text("Error generating the image. Try again.")
 
-# Основная функция
-def main():
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(selection_handler, pattern=".*"))
+# Сброс данных
+async def reset_handler(update: Update, context):
+    user_id = update.callback_query.from_user.id
+    user_data[user_id] = {"hand": None, "head": None, "leg": None}
+    await show_main_menu(update, context)
 
-    application.run_webhook(
+# Роутинг
+app = Application.builder().token("YOUR_BOT_TOKEN").build()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CallbackQueryHandler(category_handler, pattern="^(hand|head|leg)$"))
+app.add_handler(CallbackQueryHandler(accessory_handler, pattern="^(hand|head|leg):"))
+app.add_handler(CallbackQueryHandler(generate_image, pattern="^generate$"))
+app.add_handler(CallbackQueryHandler(reset_handler, pattern="^reset$"))
+
+if __name__ == "__main__":
+    logger.info("Bot is running...")
+    app.run_webhook(
         listen="0.0.0.0",
         port=8443,
         url_path="webhook",
-        webhook_url=f"{APP_URL}/webhook",
+        webhook_url="YOUR_WEBHOOK_URL",
     )
-
-if __name__ == "__main__":
-    main()
