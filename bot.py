@@ -201,15 +201,16 @@ async def generate_image(user_id, context, query):
         output_path = f"output/result_{user_id}.png"
         base_image.save(output_path)
         await query.message.reply_photo(photo=open(output_path, "rb"))
-    except Exception as ex:
-        logger.error(f"Ошибка генерации изображения: {str(ex)}")
-        await query.message.reply_text("Ошибка при генерации изображения. Попробуйте снова.")
+    except Exception as e:
+        logger.error(f"Ошибка генерации: {e}")
+        await query.message.reply_text("Ошибка генерации изображения. Попробуйте снова.")
 
 # Основная функция
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(selection_handler, pattern=".*"))
+    application.add_handler(CallbackQueryHandler(selection_handler, pattern="^(menu|hand|head|leg|background|random|generate|reset)_.*"))
+
     application.run_webhook(
         listen="0.0.0.0",
         port=8443,
