@@ -1,130 +1,196 @@
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+import logging
+import random
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from PIL import Image
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN is not set in environment variables")
+# Настройка логирования
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+logger = logging.getLogger(__name__)
 
-accessories = {
+# Переменные окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+APP_URL = os.getenv("APP_URL")
+
+# Пути к ресурсам
+BASE_IMAGE_PATH = "images/base.png"
+HAND_ACCESSORIES = {
+    "Coffee": "images/hand/coffee.png",
+    "KFC": "images/hand/kfc.png",
+    "Uzi": "images/hand/uzi.png",
+    "Cash": "images/hand/cash.png",
+    "Phantom": "images/hand/phantom.png",
+    "US Flag": "images/hand/US_flag.png",
+}
+HEAD_ACCESSORIES = {
+    "Maga Hat": "images/head/maga_hat.png",
+    "WIF Hat": "images/head/wif_hat.png",
+    "Chrome Hat": "images/head/chrome_hat.png",
+    "Stone Island": "images/head/stone_island.png",
+    "Blunt": "images/head/blunt.png",
+    "Glasses": "images/head/glasses.png",
+    "BK Crown": "images/head/BK_crown.png",
+}
+LEG_ACCESSORIES = {
+    "Elf": "images/leg/elf.png",
+    "Skate": "images/leg/skate.png",
+}
+BACKGROUNDS = {
+    "Matrix": "images/background/matrix.png",
+    "Mario": "images/background/mario.png",
+    "Windows": "images/background/windows.png",
+    "Strip": "images/background/strip.png",
+    "MLK": "images/background/MLK.png",
+}
+
+# Координаты и масштаб
+POSITIONS = {
     "hand": {
-        "coffee.png": {"position": [-45, 208], "scale": 0.5},
-        "kfc.png": {"position": [0, 221], "scale": 0.3},
-        "uzi.png": {"position": [15, 249], "scale": 0.4},
-        "cash.png": {"position": [24, 269], "scale": 0.1},
-        "phantom.png": {"position": [3, 242], "scale": 0.3},
-        "US_flag.png": {"position": [-22, 137], "scale": 0.2},
+        "Coffee": {"position": (-45, 208), "scale": 0.5},
+        "KFC": {"position": (0, 221), "scale": 0.3},
+        "Uzi": {"position": (15, 249), "scale": 0.4},
+        "Cash": {"position": (24, 269), "scale": 0.1},
+        "Phantom": {"position": (3, 242), "scale": 0.3},
+        "US Flag": {"position": (-22, 137), "scale": 0.2},
     },
     "head": {
-        "maga_hat.png": {"position": [0, -15], "scale": 0.5},
-        "wif_hat.png": {"position": [45, -43], "scale": 0.7},
-        "chrome_hat.png": {"position": [70, -29], "scale": 0.3},
-        "stone_island.png": {"position": [30, -83], "scale": 0.7},
-        "blunt.png": {"position": [258, 252], "scale": 0.3},
-        "glasses.png": {"position": [92, 120], "scale": 0.3},
-        "BK_crown.png": {"position": [123, -13], "scale": 0.2},
+        "Maga Hat": {"position": (0, -15), "scale": 0.5},
+        "WIF Hat": {"position": (45, -43), "scale": 0.7},
+        "Chrome Hat": {"position": (70, -29), "scale": 0.3},
+        "Stone Island": {"position": (30, -83), "scale": 0.7},
+        "Blunt": {"position": (258, 252), "scale": 0.3},
+        "Glasses": {"position": (92, 120), "scale": 0.3},
+        "BK Crown": {"position": (123, -13), "scale": 0.2},
     },
     "leg": {
-        "elf.png": {"position": [240, 183], "scale": 0.3},
-        "skate.png": {"position": [19, 225], "scale": 0.9},
+        "Elf": {"position": (240, 183), "scale": 0.3},
+        "Skate": {"position": (19, 225), "scale": 0.9},
     },
 }
 
-backgrounds = {
-    "matrix.png": "Matrix",
-    "mario.png": "Mario",
-    "windows.png": "Windows",
-    "strip.png": "Strip",
-    "mlk.png": "MLK",
-}
+# Хранилище данных пользователей
+user_data = {}
 
-user_choices = {}
-
-
-def reset_choices(user_id):
-    user_choices[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.chat_id
-    reset_choices(user_id)
+# Команда /start
+async def start(update: Update, context):
+    user_id = get_user_id(update)
+    user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
     await show_main_menu(update, context)
 
+# Получение user_id
+def get_user_id(update: Update):
+    if update.message:
+        return update.message.from_user.id
+    elif update.callback_query:
+        return update.callback_query.from_user.id
+    return None
 
-async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.callback_query.from_user.id if update.callback_query else update.message.chat_id
-    choices = user_choices[user_id]
+# Отображение главного меню
+async def show_main_menu(update: Update, context):
+    user_id = get_user_id(update)
+    selections = user_data.get(user_id, {})
     keyboard = [
-        [InlineKeyboardButton("Hand", callback_data="menu_hand")],
-        [InlineKeyboardButton("Head", callback_data="menu_head")],
-        [InlineKeyboardButton("Leg", callback_data="menu_leg")],
-        [InlineKeyboardButton("Background", callback_data="menu_background")],
-        [InlineKeyboardButton("Reset", callback_data="reset")],
+        [InlineKeyboardButton(f"Hand [{selections.get('hand', 'None')}]", callback_data="menu_hand")],
+        [InlineKeyboardButton(f"Head [{selections.get('head', 'None')}]", callback_data="menu_head")],
+        [InlineKeyboardButton(f"Leg [{selections.get('leg', 'None')}]", callback_data="menu_leg")],
+        [InlineKeyboardButton(f"Background [{selections.get('background', 'None')}]", callback_data="menu_background")],
         [InlineKeyboardButton("Random", callback_data="random")],
         [InlineKeyboardButton("Generate", callback_data="generate")],
+        [InlineKeyboardButton("Reset", callback_data="reset")],
     ]
-    message = f"Your selections:\nHand: {choices['hand']}\nHead: {choices['head']}\nLeg: {choices['leg']}\nBackground: {choices['background']}"
     reply_markup = InlineKeyboardMarkup(keyboard)
-    if update.callback_query:
-        await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
-    else:
-        await update.message.reply_text(message, reply_markup=reply_markup)
+    if update.message:
+        await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
+    elif update.callback_query:
+        await update.callback_query.edit_message_text("Choose a category:", reply_markup=reply_markup)
 
+# Обработчик выбора
+async def selection_handler(update: Update, context):
+    query = update.callback_query
+    user_id = get_user_id(update)
+    user_data.setdefault(user_id, {"hand": None, "head": None, "leg": None, "background": None})
 
-async def generate_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.callback_query.from_user.id
-    choices = user_choices[user_id]
-    base_image = Image.open("base.png")
-    for category, choice in choices.items():
-        if choice:
-            accessory = accessories[category][choice]
-            accessory_image = Image.open(f"{category}/{choice}")
-            accessory_image = accessory_image.resize(
-                [int(dim * accessory["scale"]) for dim in accessory_image.size]
-            )
-            base_image.paste(accessory_image, accessory["position"], accessory_image)
-    output_path = f"output/result_{user_id}.png"
-    base_image.save(output_path)
-    await update.callback_query.message.reply_photo(photo=open(output_path, "rb"))
-
-
-async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.callback_query.from_user.id
-    query_data = update.callback_query.data
-    if query_data == "reset":
-        reset_choices(user_id)
-    elif query_data == "random":
-        for category in user_choices[user_id]:
-            if category != "background":
-                user_choices[user_id][category] = random.choice(list(accessories[category].keys()))
-            else:
-                user_choices[user_id]["background"] = random.choice(list(backgrounds.keys()))
-    elif query_data.startswith("menu_"):
-        category = query_data.split("_")[1]
+    await query.answer()
+    if query.data.startswith("menu_"):
+        category = query.data.split("_")[1]
+        options = {
+            "hand": HAND_ACCESSORIES,
+            "head": HEAD_ACCESSORIES,
+            "leg": LEG_ACCESSORIES,
+            "background": BACKGROUNDS,
+        }.get(category, {})
         keyboard = [
-            [InlineKeyboardButton(name, callback_data=f"select_{category}_{name}")]
-            for name in accessories[category]
-        ]
-        keyboard.append([InlineKeyboardButton("Back", callback_data="main_menu")])
-        await update.callback_query.edit_message_text(
-            f"Choose an item for {category.capitalize()}:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
-    elif query_data.startswith("select_"):
-        _, category, choice = query_data.split("_")
-        user_choices[user_id][category] = choice
-    elif query_data == "generate":
-        await generate_image(update, context)
-    await show_main_menu(update, context)
+            [InlineKeyboardButton(name, callback_data=f"{category}_{name}")] for name in options
+        ] + [[InlineKeyboardButton("Back", callback_data="main_menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(f"Select an item for {category.capitalize()}:", reply_markup=reply_markup)
+    elif query.data.startswith(("hand_", "head_", "leg_", "background_")):
+        category, item = query.data.split("_", 1)
+        user_data[user_id][category] = item
+        await show_main_menu(update, context)
+    elif query.data == "random":
+        user_data[user_id] = {
+            "hand": random.choice(list(HAND_ACCESSORIES.keys())),
+            "head": random.choice(list(HEAD_ACCESSORIES.keys())),
+            "leg": random.choice(list(LEG_ACCESSORIES.keys())),
+            "background": random.choice(list(BACKGROUNDS.keys())),
+        }
+        await show_main_menu(update, context)
+    elif query.data == "generate":
+        await query.edit_message_text("Generating image...")
+        await generate_image(user_id, query)
+    elif query.data == "reset":
+        user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
+        await show_main_menu(update, context)
+    elif query.data == "main_menu":
+        await show_main_menu(update, context)
 
+# Генерация изображения
+async def generate_image(user_id, query):
+    try:
+        logger.info(f"Начинаем генерацию изображения для пользователя {user_id}")
+        base_image = Image.open(BASE_IMAGE_PATH).convert("RGBA")
+        selections = user_data[user_id]
+        for category in ["hand", "head", "leg"]:
+            if selections[category]:
+                accessory_path = HAND_ACCESSORIES[selections[category]]
+                accessory = Image.open(accessory_path).convert("RGBA")
+                pos = POSITIONS[category][selections[category]]["position"]
+                scale = POSITIONS[category][selections[category]]["scale"]
+                accessory = accessory.resize(
+                    (int(accessory.width * scale), int(accessory.height * scale)),
+                    Image.ANTIALIAS,
+                )
+                base_image.paste(accessory, pos, accessory)
 
+        if selections["background"]:
+            background_path = BACKGROUNDS[selections["background"]]
+            background = Image.open(background_path).convert("RGBA")
+            base_image = Image.alpha_composite(background, base_image)
+
+        output_path = f"output/result_{user_id}.png"
+        base_image.save(output_path)
+        await query.message.reply_photo(photo=open(output_path, "rb"))
+    except Exception as e:
+        logger.error(f"Ошибка генерации: {e}")
+        await query.message.reply_text("Ошибка при генерации изображения. Убедитесь, что все элементы выбраны.")
+
+# Основная функция
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(menu_handler))
-    app.run_polling()
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(selection_handler, pattern=".*"))
 
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=8443,
+        url_path="webhook",
+        webhook_url=f"{APP_URL}/webhook",
+    )
 
 if __name__ == "__main__":
     main()
