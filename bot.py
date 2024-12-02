@@ -3,7 +3,7 @@ import logging
 import random
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from PIL import Image
+from PIL import Image, ImageResampling
 
 # Настройка логирования
 logging.basicConfig(
@@ -154,21 +154,24 @@ async def generate_image(user_id, query):
     try:
         logger.info(f"Начинаем генерацию изображения для пользователя {user_id}")
         base_image = Image.open(BASE_IMAGE_PATH).convert("RGBA")
+        logger.info("Базовое изображение загружено.")
         selections = user_data[user_id]
         for category in ["hand", "head", "leg"]:
             if selections[category]:
                 accessory_path = HAND_ACCESSORIES[selections[category]]
+                logger.info(f"Добавляем аксессуар: {accessory_path}")
                 accessory = Image.open(accessory_path).convert("RGBA")
                 pos = POSITIONS[category][selections[category]]["position"]
                 scale = POSITIONS[category][selections[category]]["scale"]
                 accessory = accessory.resize(
                     (int(accessory.width * scale), int(accessory.height * scale)),
-                    Image.ANTIALIAS,
+                    ImageResampling.LANCZOS,
                 )
                 base_image.paste(accessory, pos, accessory)
 
         if selections["background"]:
             background_path = BACKGROUNDS[selections["background"]]
+            logger.info(f"Добавляем фон: {background_path}")
             background = Image.open(background_path).convert("RGBA")
             base_image = Image.alpha_composite(background, base_image)
 
