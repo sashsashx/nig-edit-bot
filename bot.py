@@ -18,18 +18,21 @@ APP_URL = os.getenv("APP_URL")
 # Путь к папкам
 BASE_IMAGE_PATH = "images/nig.png"
 HAND_ACCESSORIES = {
-    "Phantom": "images/hand/phantom.png",
+    "Coffee": "images/hand/coffee.png",
+    "KFC": "images/hand/kfc.png",
     "Uzi": "images/hand/uzi.png",
     "Cash": "images/hand/cash.png",
+    "Phantom": "images/hand/phantom.png",
     "US Flag": "images/hand/US_flag.png",
-    "KFC": "images/hand/kfc.png",
 }
 HEAD_ACCESSORIES = {
+    "Maga Hat": "images/head/maga_hat.png",
+    "WIF Hat": "images/head/wif_hat.png",
+    "Chrome Hat": "images/head/chrome_hat.png",
     "Stone Island": "images/head/stone_island.png",
     "Blunt": "images/head/blunt.png",
     "Glasses": "images/head/glasses.png",
     "BK Crown": "images/head/BK_crown.png",
-    "Maga Hat": "images/head/maga_hat.png",
 }
 LEG_ACCESSORIES = {
     "Elf": "images/leg/elf.png",
@@ -46,13 +49,11 @@ BACKGROUNDS = {
 # Хранилище данных пользователей
 user_data = {}
 
-
 # Команда /start
 async def start(update: Update, context):
     user_id = update.message.from_user.id
     user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
     await show_main_menu(update, context)
-
 
 # Отображение главного меню
 async def show_main_menu(update: Update, context):
@@ -98,7 +99,6 @@ async def show_main_menu(update: Update, context):
         await update.callback_query.edit_message_text(
             "Choose a category:", reply_markup=reply_markup
         )
-
 
 # Обработчик выбора
 async def selection_handler(update: Update, context):
@@ -146,7 +146,6 @@ async def selection_handler(update: Update, context):
     elif query.data == "main_menu":
         await show_main_menu(update, context)
 
-
 # Генерация изображения
 async def generate_image(user_id, context, query):
     try:
@@ -158,29 +157,31 @@ async def generate_image(user_id, context, query):
         # Добавляем фон
         background_file = BACKGROUNDS.get(user_selections.get("background"))
         if background_file:
-            logger.info(f"Добавляем фон: {background_file}")
             background = Image.open(background_file).resize(base_image.size).convert("RGBA")
             base_image = Image.alpha_composite(background, base_image)
         
         # Позиции и масштабы
         positions = {
             "hand": {
-                "Phantom": ([3, 242], 0.3),
-                "Uzi": ([15, 249], 0.4),
-                "Cash": ([24, 269], 0.1),
-                "US Flag": ([-22, 137], 0.2),
-                "KFC": ([0, 250], 0.3),
+                "Coffee": {"position": [-45, 208], "scale": 0.5},
+                "KFC": {"position": [0, 221], "scale": 0.3},
+                "Uzi": {"position": [15, 249], "scale": 0.4},
+                "Cash": {"position": [24, 269], "scale": 0.1},
+                "Phantom": {"position": [3, 242], "scale": 0.3},
+                "US Flag": {"position": [-22, 137], "scale": 0.2},
             },
             "head": {
-                "Stone Island": ([30, -83], 0.7),
-                "Blunt": ([258, 252], 0.3),
-                "Glasses": ([92, 120], 0.3),
-                "BK Crown": ([123, -13], 0.2),
-                "Maga Hat": ([60, -50], 0.5),
+                "Maga Hat": {"position": [0, -15], "scale": 0.5},
+                "WIF Hat": {"position": [45, -43], "scale": 0.7},
+                "Chrome Hat": {"position": [70, -29], "scale": 0.3},
+                "Stone Island": {"position": [30, -83], "scale": 0.7},
+                "Blunt": {"position": [258, 252], "scale": 0.3},
+                "Glasses": {"position": [92, 120], "scale": 0.3},
+                "BK Crown": {"position": [123, -13], "scale": 0.2},
             },
             "leg": {
-                "Elf": ([240, 183], 0.3),
-                "Skate": ([100, 200], 0.4),
+                "Elf": {"position": [240, 183], "scale": 0.3},
+                "Skate": {"position": [19, 225], "scale": 0.9},
             },
         }
         
@@ -189,9 +190,9 @@ async def generate_image(user_id, context, query):
             item = user_selections.get(category)
             if item:
                 file_path = HAND_ACCESSORIES.get(item) or HEAD_ACCESSORIES.get(item) or LEG_ACCESSORIES.get(item)
-                position, scale = positions[category].get(item, ([0, 0], 1.0))
                 if file_path:
-                    logger.info(f"Добавляем {category}: {item} из {file_path}")
+                    position = positions[category][item]["position"]
+                    scale = positions[category][item]["scale"]
                     accessory = Image.open(file_path).convert("RGBA")
                     accessory = accessory.resize((int(accessory.width * scale), int(accessory.height * scale)))
                     base_image.paste(accessory, position, accessory)
@@ -199,19 +200,10 @@ async def generate_image(user_id, context, query):
         # Сохраняем изображение
         output_path = f"output/result_{user_id}.png"
         base_image.save(output_path)
-        logger.info(f"Изображение сохранено: {output_path}")
-        
-        # Отправляем изображение
-        try:
-            await query.message.reply_photo(photo=open(output_path, "rb"))
-            logger.info(f"Изображение отправлено пользователю {user_id}")
-        except Exception as e:
-            logger.error(f"Ошибка при отправке изображения: {str(e)}")
-            await query.message.reply_text(f"Ошибка при отправке изображения: {str(e)}")
+        await query.message.reply_photo(photo=open(output_path, "rb"))
     except Exception as ex:
         logger.error(f"Ошибка генерации изображения: {str(ex)}")
         await query.message.reply_text("Ошибка при генерации изображения. Попробуйте снова.")
-
 
 # Основная функция
 def main():
@@ -224,7 +216,6 @@ def main():
         url_path="webhook",
         webhook_url=f"{APP_URL}/webhook",
     )
-
 
 if __name__ == "__main__":
     main()
