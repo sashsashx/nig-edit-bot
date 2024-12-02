@@ -158,11 +158,25 @@ async def generate_image(user_id, query):
         selections = user_data[user_id]
         for category in ["hand", "head", "leg"]:
             if selections[category]:
-                accessory_path = HAND_ACCESSORIES[selections[category]]
+                accessory_name = selections[category]
+                accessory_path = {
+                    "hand": HAND_ACCESSORIES,
+                    "head": HEAD_ACCESSORIES,
+                    "leg": LEG_ACCESSORIES,
+                }[category].get(accessory_name)
+                if not accessory_path:
+                    logger.error(f"Путь для аксессуара {accessory_name} не найден!")
+                    continue
+
+                pos_data = POSITIONS[category].get(accessory_name)
+                if not pos_data:
+                    logger.error(f"Данные для позиции {accessory_name} не найдены!")
+                    continue
+
                 logger.info(f"Добавляем аксессуар: {accessory_path}")
                 accessory = Image.open(accessory_path).convert("RGBA")
-                pos = POSITIONS[category][selections[category]]["position"]
-                scale = POSITIONS[category][selections[category]]["scale"]
+                pos = pos_data["position"]
+                scale = pos_data["scale"]
                 accessory = accessory.resize(
                     (int(accessory.width * scale), int(accessory.height * scale)),
                     Image.Resampling.LANCZOS,
@@ -170,10 +184,11 @@ async def generate_image(user_id, query):
                 base_image.paste(accessory, pos, accessory)
 
         if selections["background"]:
-            background_path = BACKGROUNDS[selections["background"]]
-            logger.info(f"Добавляем фон: {background_path}")
-            background = Image.open(background_path).convert("RGBA")
-            base_image = Image.alpha_composite(background, base_image)
+            background_path = BACKGROUNDS.get(selections["background"])
+            if background_path:
+                logger.info(f"Добавляем фон: {background_path}")
+                background = Image.open(background_path).convert("RGBA")
+                base_image = Image.alpha_composite(background, base_image)
 
         output_path = f"output/result_{user_id}.png"
         base_image.save(output_path)
