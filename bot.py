@@ -3,7 +3,7 @@ import logging
 import random
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from PIL import Image, ImageResampling
+from PIL import Image
 
 # Настройка логирования
 logging.basicConfig(
@@ -72,84 +72,7 @@ POSITIONS = {
     },
 }
 
-# Хранилище данных пользователей
-user_data = {}
-
-# Команда /start
-async def start(update: Update, context):
-    user_id = get_user_id(update)
-    user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-    await show_main_menu(update, context)
-
-# Получение user_id
-def get_user_id(update: Update):
-    if update.message:
-        return update.message.from_user.id
-    elif update.callback_query:
-        return update.callback_query.from_user.id
-    return None
-
-# Отображение главного меню
-async def show_main_menu(update: Update, context):
-    user_id = get_user_id(update)
-    selections = user_data.get(user_id, {})
-    keyboard = [
-        [InlineKeyboardButton(f"Hand [{selections.get('hand', 'None')}]", callback_data="menu_hand")],
-        [InlineKeyboardButton(f"Head [{selections.get('head', 'None')}]", callback_data="menu_head")],
-        [InlineKeyboardButton(f"Leg [{selections.get('leg', 'None')}]", callback_data="menu_leg")],
-        [InlineKeyboardButton(f"Background [{selections.get('background', 'None')}]", callback_data="menu_background")],
-        [InlineKeyboardButton("Random", callback_data="random")],
-        [InlineKeyboardButton("Generate", callback_data="generate")],
-        [InlineKeyboardButton("Reset", callback_data="reset")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    if update.message:
-        await update.message.reply_text("Choose a category:", reply_markup=reply_markup)
-    elif update.callback_query:
-        await update.callback_query.edit_message_text("Choose a category:", reply_markup=reply_markup)
-
-# Обработчик выбора
-async def selection_handler(update: Update, context):
-    query = update.callback_query
-    user_id = get_user_id(update)
-    user_data.setdefault(user_id, {"hand": None, "head": None, "leg": None, "background": None})
-
-    await query.answer()
-    if query.data.startswith("menu_"):
-        category = query.data.split("_")[1]
-        options = {
-            "hand": HAND_ACCESSORIES,
-            "head": HEAD_ACCESSORIES,
-            "leg": LEG_ACCESSORIES,
-            "background": BACKGROUNDS,
-        }.get(category, {})
-        keyboard = [
-            [InlineKeyboardButton(name, callback_data=f"{category}_{name}")] for name in options
-        ] + [[InlineKeyboardButton("Back", callback_data="main_menu")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(f"Select an item for {category.capitalize()}:", reply_markup=reply_markup)
-    elif query.data.startswith(("hand_", "head_", "leg_", "background_")):
-        category, item = query.data.split("_", 1)
-        user_data[user_id][category] = item
-        await show_main_menu(update, context)
-    elif query.data == "random":
-        user_data[user_id] = {
-            "hand": random.choice(list(HAND_ACCESSORIES.keys())),
-            "head": random.choice(list(HEAD_ACCESSORIES.keys())),
-            "leg": random.choice(list(LEG_ACCESSORIES.keys())),
-            "background": random.choice(list(BACKGROUNDS.keys())),
-        }
-        await show_main_menu(update, context)
-    elif query.data == "generate":
-        await query.edit_message_text("Generating image...")
-        await generate_image(user_id, query)
-    elif query.data == "reset":
-        user_data[user_id] = {"hand": None, "head": None, "leg": None, "background": None}
-        await show_main_menu(update, context)
-    elif query.data == "main_menu":
-        await show_main_menu(update, context)
-
-# Генерация изображения
+# Функция генерации изображения
 async def generate_image(user_id, query):
     try:
         logger.info(f"Начинаем генерацию изображения для пользователя {user_id}")
@@ -165,7 +88,7 @@ async def generate_image(user_id, query):
                 scale = POSITIONS[category][selections[category]]["scale"]
                 accessory = accessory.resize(
                     (int(accessory.width * scale), int(accessory.height * scale)),
-                    ImageResampling.LANCZOS,
+                    Image.Resampling.LANCZOS,
                 )
                 base_image.paste(accessory, pos, accessory)
 
